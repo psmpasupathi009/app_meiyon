@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  transpilePackages: ["@meiyon/db", "@meiyon/auth", "@meiyon/config", "@meiyon/ui", "@meiyon/billing"],
 };
 
 export default nextConfig;

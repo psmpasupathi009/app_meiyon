@@ -1,0 +1,750 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Platform (Super Admin) ───────────────────────────────────────────────
+
+enum PlatformRole {
+  platform_owner
+  platform_support
+}
+
+enum OfficeStatus {
+  draft
+  active
+  suspended
+  closed
+}
+
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  suspended
+  cancelled
+  expired
+}
+
+enum BillingCycle {
+  monthly
+  yearly
+}
+
+enum InvoiceStatus {
+  draft
+  paid
+  void
+}
+
+model PlatformUser {
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  unitId            String         @unique
+  mobile            String         @unique
+  roles             PlatformRole[]
+  name              String?
+  email             String?
+  pinHash           String?
+  isActive          Boolean        @default(true)
+  failedPinAttempts Int            @default(0)
+  pinLockedUntil    DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model PlatformIdCounter {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  entity String @unique
+  seq    Int    @default(0)
+}
+
+model PlatformAuditLog {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  actorUnitId  String?
+  action       String
+  entityType   String
+  entityUnitId String?
+  meta         Json?
+  createdAt    DateTime @default(now())
+
+  @@index([entityType, entityUnitId])
+  @@index([createdAt])
+}
+
+model Office {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  unitId          String       @unique
+  name            String
+  slug            String       @unique
+  status          OfficeStatus @default(active)
+  phone           String?
+  email           String?
+  address         String?
+  state           String?
+  timezone        String       @default("Asia/Kolkata")
+  displayName     String?
+  logoKey         String?
+  moduleOverrides String[]     @default([])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([status])
+}
+
+model Plan {
+  id                     String   @id @default(auto()) @map("_id") @db.ObjectId
+  unitId                 String   @unique
+  code                   String   @unique
+  name                   String
+  monthlyPricePaise      Int
+  yearlyPricePaise       Int
+  seatLimit              Int
+  smsLimit               Int
+  storageBytes           BigInt
+  moduleEntitlements     String[]
+  trialDays              Int      @default(14)
+  isActive               Boolean  @default(true)
+  razorpayPlanIdMonthly  String?
+  razorpayPlanIdYearly   String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+enum LeadStatus {
+  new
+  contacted
+  converted
+  closed
+}
+
+model Lead {
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  name         String
+  firmName     String
+  mobile       String
+  email        String?
+  city         String?
+  message      String?
+  planInterest String?
+  status       LeadStatus @default(new)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Subscription {
+  id                     String             @id @default(auto()) @map("_id") @db.ObjectId
+  unitId                 String             @unique
+  officeId               String             @db.ObjectId
+  officeUnitId           String
+  planId                 String             @db.ObjectId
+  planUnitId             String
+  status                 SubscriptionStatus @default(trialing)
+  billingCycle           BillingCycle       @default(monthly)
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  trialEndsAt            DateTime?
+  razorpayCustomerId     String?
+  razorpaySubscriptionId String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  @@index([officeId])
+  @@index([status])
+}
+
+model Invoice {
+  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+  unitId            String        @unique
+  officeId          String        @db.ObjectId
+  officeUnitId      String
+  subscriptionId    String?       @db.ObjectId
+  amountPaise       Int
+  taxPaise          Int           @default(0)
+  status            InvoiceStatus @default(draft)
+  razorpayPaymentId String?
+  pdfKey            String?
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([officeId])
+  @@index([status])
+}
+
+model UsageCounter {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  officeId     String @db.ObjectId
+  month        String
+  smsSent      Int    @default(0)
+  storageBytes BigInt @default(0)
+  activeSeats  Int    @default(0)
+
+  @@unique([officeId, month])
+}
+
+model WebhookEvent {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  razorpayEventId String   @unique
+  payload         Json
+  processedAt     DateTime @default(now())
+}
+
+// ─── Office domain (multi-tenant) ───────────────────────────────────────────
+
+enum UserRole {
+  admin
+  sub_admin
+  staff
+  advocate
+  accountant
+  client
+}
+
+enum OtpPurpose {
+  setup
+  forgot_pin
+}
+
+enum CaseStatus {
+  enquiry
+  engaged
+  pre_filing
+  under_filing
+  filing_defect
+  active
+  reserved
+  disposed
+  withdrawn
+  transferred
+  archived
+}
+
+enum PaymentType {
+  advance
+  partial
+  full
+  consultation
+  court_fee
+  stamp
+  copying
+  travel
+  clerkage
+  other
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  void
+}
+
+enum AppointmentStatus {
+  scheduled
+  completed
+  cancelled
+}
+
+enum LeaveStatus {
+  pending
+  approved
+  rejected
+  cancelled
+}
+
+enum DocumentType {
+  judgment
+  order
+  pleading
+  vakalatnama
+  petition
+  affidavit
+  evidence
+  id_proof
+  receipt
+  other
+}
+
+enum OfficeExpenseCategory {
+  stationery
+  utilities
+  maintenance
+  travel
+  refreshments
+  equipment
+  professional_services
+  misc
+  others
+}
+
+enum ExpensePaymentMode {
+  cash
+  upi
+  card
+  bank
+  other
+}
+
+model User {
+  id                String     @id @default(auto()) @map("_id") @db.ObjectId
+  unitId            String     @unique
+  officeId          String     @db.ObjectId
+  officeUnitId      String
+  mobile            String
+  roles             UserRole[]
+  designation       String?
+  pinHash           String?
+  isActive          Boolean    @default(true)
+  name              String?
+  email             String?
+  address           String?
+  photoKey          String?
+  clientUnitId      String?
+  defaultCourts     Json?
+  createdById       String?    @db.ObjectId
+  failedPinAttempts Int        @default(0)
+  pinLockedUntil    DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@unique([officeId, mobile])
+  @@index([mobile])
+  @@index([officeId])
+  @@index([name])
+}
+
+model OtpSession {
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  mobile    String
+  sessionId String
+  purpose   OtpPurpose
+  expiresAt DateTime
+  verified  Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([mobile, purpose])
+  @@index([expiresAt])
+}
+
+model ConsumedOtpProof {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  jti       String   @unique
+  mobile    String
+  purpose   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+model RolePermission {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  officeId  String   @db.ObjectId
+  role      UserRole
+  module    String
+  action    String
+  allowed   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([officeId, role, module, action])
+  @@index([officeId, role])
+}
+
+model AuditLog {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  officeId     String   @db.ObjectId
+  actorUnitId  String?
+  action       String
+  entity       String
+  entityUnitId String?
+  meta         Json?
+  createdAt    DateTime @default(now())
+
+  @@index([officeId, createdAt])
+  @@index([entity, entityUnitId])
+}
+
+model IdCounter {
+  id       String @id @default(auto()) @map("_id") @db.ObjectId
+  officeId String @db.ObjectId
+  entity   String
+  seq      Int    @default(0)
+
+  @@unique([officeId, entity])
+}
+
+model Client {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  unitId         String   @unique
+  officeId       String   @db.ObjectId
+  officeUnitId   String
+  name           String
+  fatherOrSpouse String?
+  occupation     String?
+  gender         String?
+  mobile         String
+  altMobile      String?
+  email          String?
+  address        String?
+  city           String?
+  district       String?
+  state          String?
+  aadhaarLast4   String?
+  referredBy     String?
+  matterBrief    String?
+  notes          String?
+  smsConsent     Boolean  @default(true)
+  createdById    String?  @db.ObjectId
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([officeId, name])
+  @@index([officeId, mobile])
+}
+
+model Case {
+  id                    String     @id @default(auto()) @map("_id") @db.ObjectId
+  unitId                String     @unique
+  officeId              String     @db.ObjectId
+  officeUnitId          String
+  clientId              String     @db.ObjectId
+  clientUnitId          String
+  caseNumber            String?
+  filingNumber          String?
+  caseYear              Int?
+  cnr                   String?
+  state                 String?
+  district              String?
+  city                  String?
+  courtName             String?
+  advocateMobiles       String[]   @default([])
+  primaryAdvocateMobile String?
+  opposingParty         String?
+  ourSide               String?
+  underActs             String?
+  policeStation         String?
+  firNumber             String?
+  stage                 String?
+  caseType              String?
+  status                CaseStatus @default(pre_filing)
+  filingDate            DateTime?
+  nextHearingAt         DateTime?
+  agreedFee             Float?
+  notes                 String?
+  filingChecklist       Json?
+  battaDue              Boolean    @default(false)
+  awaitingService       Boolean    @default(false)
+  createdById           String?    @db.ObjectId
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  @@index([officeId, clientId])
+  @@index([officeId, status])
+  @@index([officeId, nextHearingAt])
+}
+
+model Hearing {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  unitId       String    @unique
+  officeId     String    @db.ObjectId
+  officeUnitId String
+  caseId       String    @db.ObjectId
+  caseUnitId   String
+  hearingDate  DateTime
+  purpose      String?
+  notes        String?
+  outcome      String?
+  isAdjourned  Boolean   @default(false)
+  smsSentAt    DateTime?
+  createdById  String?   @db.ObjectId
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([officeId, hearingDate])
+  @@index([caseId])
+}
+
+model CashPayment {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  unitId       String        @unique
+  officeId     String        @db.ObjectId
+  officeUnitId String
+  clientId     String        @db.ObjectId
+  clientUnitId String
+  caseId       String?       @db.ObjectId
+  caseUnitId   String?
+  type         PaymentType
+  amount       Float
+  status       PaymentStatus @default(pending)
+  paidOn       DateTime?
+  notes        String?
+  voidedAt     DateTime?
+  voidedById   String?       @db.ObjectId
+  voidReason   String?
+  createdById  String?       @db.ObjectId
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([officeId, clientId])
+  @@index([officeId, status])
+}
+
+model OfficeExpense {
+  id                 String                @id @default(auto()) @map("_id") @db.ObjectId
+  unitId             String                @unique
+  officeId           String                @db.ObjectId
+  officeUnitId       String
+  expenseDate        DateTime
+  category           OfficeExpenseCategory
+  vendor             String?
+  description        String
+  amount             Float
+  paymentMode        ExpensePaymentMode    @default(cash)
+  billDocumentId     String?               @db.ObjectId
+  billDocumentUnitId String?
+  voidedAt           DateTime?
+  voidedById         String?               @db.ObjectId
+  voidReason         String?
+  createdById        String?               @db.ObjectId
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([officeId, expenseDate])
+}
+
+model Document {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  unitId         String       @unique
+  officeId       String       @db.ObjectId
+  officeUnitId   String
+  caseId         String?      @db.ObjectId
+  caseUnitId     String?
+  clientId       String?      @db.ObjectId
+  clientUnitId   String?
+  expenseId      String?      @db.ObjectId
+  expenseUnitId  String?
+  docType        DocumentType @default(other)
+  title          String
+  notes          String?
+  fileKey        String
+  mimeType       String
+  size           Int
+  originalName   String
+  uploadedById   String?      @db.ObjectId
+  createdAt      DateTime     @default(now())
+
+  @@index([officeId, caseUnitId])
+  @@index([officeId, clientUnitId])
+}
+
+model Appointment {
+  id             String            @id @default(auto()) @map("_id") @db.ObjectId
+  unitId         String            @unique
+  officeId       String            @db.ObjectId
+  officeUnitId   String
+  clientId       String?           @db.ObjectId
+  clientUnitId   String?
+  caseId         String?           @db.ObjectId
+  caseUnitId     String?
+  advocateMobile String?
+  title          String
+  scheduledAt    DateTime
+  durationMin    Int               @default(30)
+  mode           String            @default("office")
+  location       String?
+  notes          String?
+  status         AppointmentStatus @default(scheduled)
+  createdById    String?           @db.ObjectId
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([officeId, scheduledAt])
+}
+
+model DakEntry {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  unitId       String   @unique
+  officeId     String   @db.ObjectId
+  officeUnitId String
+  direction    String
+  entryDate    DateTime
+  subject      String
+  fromTo       String?
+  mode         String?
+  trackingNo   String?
+  caseUnitId   String?
+  clientUnitId String?
+  notes        String?
+  createdById  String?  @db.ObjectId
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([officeId, entryDate])
+}
+
+model OfficeTask {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  unitId         String    @unique
+  officeId       String    @db.ObjectId
+  officeUnitId   String
+  title          String
+  kind           String    @default("general")
+  status         String    @default("open")
+  dueDate        DateTime?
+  workDate       DateTime?
+  assigneeId     String?   @db.ObjectId
+  assigneeUnitId String?
+  caseUnitId     String?
+  notes          String?
+  finishNote     String?
+  createdById    String?   @db.ObjectId
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([officeId, workDate])
+  @@index([officeId, status])
+}
+
+model Attendance {
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  unitId           String    @unique
+  officeId         String    @db.ObjectId
+  officeUnitId     String
+  userId           String    @db.ObjectId
+  userUnitId       String
+  date             String
+  checkInAt        DateTime?
+  checkOutAt       DateTime?
+  checkInLat       Float?
+  checkInLng       Float?
+  checkInAccuracy  Float?
+  checkOutLat      Float?
+  checkOutLng      Float?
+  checkOutAccuracy Float?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([officeId, userId, date])
+  @@index([officeId, date])
+}
+
+model LeaveRequest {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+  unitId       String      @unique
+  officeId     String      @db.ObjectId
+  officeUnitId String
+  userId       String      @db.ObjectId
+  userUnitId   String
+  fromDate     String
+  toDate       String
+  reason       String?
+  status       LeaveStatus @default(pending)
+  approvedById String?     @db.ObjectId
+  approvedAt   DateTime?
+  rejectReason String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([officeId, userId])
+}
+
+model AdvocateWeeklyHours {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  unitId       String   @unique
+  officeId     String   @db.ObjectId
+  officeUnitId String
+  userId       String   @db.ObjectId
+  userUnitId   String
+  weekday      Int
+  startTime    String
+  endTime      String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([officeId, userId, weekday])
+}
+
+model AdvocateTimeBlock {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  unitId       String   @unique
+  officeId     String   @db.ObjectId
+  officeUnitId String
+  userId       String   @db.ObjectId
+  userUnitId   String
+  startsAt     DateTime
+  endsAt       DateTime
+  kind         String   @default("break")
+  reason       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([officeId, userId, startsAt])
+}
+
+model OfficeHoliday {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  unitId       String   @unique
+  officeId     String   @db.ObjectId
+  officeUnitId String
+  fromDate     String
+  toDate       String
+  title        String
+  notes        String?
+  createdById  String?  @db.ObjectId
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([officeId, fromDate])
+}
+
+model CourtDutyOverride {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  unitId         String   @unique
+  officeId       String   @db.ObjectId
+  officeUnitId   String
+  state          String
+  district       String
+  city           String
+  courtName      String
+  advocateUserId String   @db.ObjectId
+  advocateUnitId String
+  advocateMobile String
+  fromDate       String
+  toDate         String
+  reason         String?
+  createdById    String?  @db.ObjectId
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([officeId, fromDate])
+}
+
+model Notification {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  unitId       String    @unique
+  officeId     String    @db.ObjectId
+  officeUnitId String
+  userId       String    @db.ObjectId
+  userUnitId   String
+  type         String
+  title        String
+  body         String?
+  href         String?
+  meta         Json?
+  readAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([officeId, userId, createdAt])
+}
