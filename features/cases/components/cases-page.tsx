@@ -60,7 +60,7 @@ type QuickFilter =
 
 type CasesView = "list" | "board";
 
-const VIEW_STORAGE_KEY = "mlf.cases.view";
+const VIEW_STORAGE_KEY = "meiyon.cases.view";
 const BOARD_PAGE_SIZE = 200;
 
 function readStoredView(): CasesView {

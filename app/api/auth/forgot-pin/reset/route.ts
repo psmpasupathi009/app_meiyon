@@ -16,11 +16,19 @@ export async function POST(request: Request) {
   const body = await request.json();
   const parsed = forgotPinResetSchema.safeParse(body);
   if (!parsed.success) {
-    return jsonFail("VALIDATION", parsed.error.errors[0]?.message ?? "Invalid input", 400);
+    return jsonFail(
+      "VALIDATION",
+      parsed.error.issues[0]?.message ?? "Invalid input",
+      400
+    );
   }
 
   if (isWeakPin(parsed.data.pin)) {
-    return jsonFail("WEAK_PIN", "Choose a stronger 6-digit PIN", 400);
+    return jsonFail(
+      "WEAK_PIN",
+      "Choose a stronger PIN (avoid 123456 and repeats)",
+      400
+    );
   }
 
   const proof = await consumeOtpProof(parsed.data.otpProofToken, "forgot_pin");

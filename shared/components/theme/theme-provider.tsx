@@ -19,7 +19,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       attribute="class"
       defaultTheme="system"
       enableSystem
-      storageKey="mlf-theme"
+      storageKey="meiyon-theme"
       disableTransitionOnChange
       scriptProps={scriptProps}
     >

@@ -12,6 +12,13 @@ datasource db {
 enum PlatformRole {
   platform_owner
   platform_support
+  psm_super_admin
+  psm_staff
+}
+
+enum ProductAccessRole {
+  admin
+  viewer
 }
 
 enum OfficeStatus {
@@ -42,19 +49,46 @@ enum InvoiceStatus {
 }
 
 model PlatformUser {
-  id                String         @id @default(auto()) @map("_id") @db.ObjectId
-  unitId            String         @unique
-  mobile            String         @unique
+  id                String          @id @default(auto()) @map("_id") @db.ObjectId
+  unitId            String          @unique
+  mobile            String          @unique
   roles             PlatformRole[]
   name              String?
   email             String?
   pinHash           String?
-  isActive          Boolean        @default(true)
-  failedPinAttempts Int            @default(0)
+  isActive          Boolean         @default(true)
+  failedPinAttempts Int             @default(0)
   pinLockedUntil    DateTime?
   lastLoginAt       DateTime?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  productAccess     ProductAccess[]
+}
+
+model Product {
+  id        String          @id @default(auto()) @map("_id") @db.ObjectId
+  slug      String          @unique
+  name      String
+  adminUrl  String
+  isActive  Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  access    ProductAccess[]
+}
+
+model ProductAccess {
+  id        String            @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String            @db.ObjectId
+  productId String            @db.ObjectId
+  role      ProductAccessRole @default(admin)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  user      PlatformUser      @relation(fields: [userId], references: [id])
+  product   Product           @relation(fields: [productId], references: [id])
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
 }
 
 model PlatformIdCounter {

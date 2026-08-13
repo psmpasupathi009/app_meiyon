@@ -8,7 +8,6 @@ export default function LoginPage() {
       title="Office Portal"
       subtitle="Sign in with your registered mobile number"
       enableOfficePicker
-      demoHint="Demo: seeded admin mobile 8675762821 · PIN 123456"
     />
   );
 }

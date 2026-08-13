@@ -16,15 +16,23 @@ export async function POST(request: Request) {
   const body = await request.json();
   const parsed = setupPinSchema.safeParse(body);
   if (!parsed.success) {
-    return jsonFail("VALIDATION", parsed.error.errors[0]?.message ?? "Invalid input", 400);
+    const message = parsed.error.issues[0]?.message ?? "Invalid input";
+    console.warn("[setup-pin] VALIDATION", message);
+    return jsonFail("VALIDATION", message, 400);
   }
 
   if (isWeakPin(parsed.data.pin)) {
-    return jsonFail("WEAK_PIN", "Choose a stronger 6-digit PIN", 400);
+    console.warn("[setup-pin] WEAK_PIN");
+    return jsonFail(
+      "WEAK_PIN",
+      "Choose a stronger PIN (avoid 123456 and repeats)",
+      400
+    );
   }
 
   const proof = await consumeOtpProof(parsed.data.otpProofToken, "setup");
   if (!proof) {
+    console.warn("[setup-pin] INVALID_PROOF");
     return jsonFail("INVALID_PROOF", "OTP verification expired. Start again.", 400);
   }
 

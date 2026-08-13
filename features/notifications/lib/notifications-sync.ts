@@ -1,6 +1,6 @@
 /** Cross-surface + cross-tab sync between header bell and inbox page. */
-export const NOTIFICATIONS_CHANGED_EVENT = "mlf:notifications-changed";
-const CHANNEL_NAME = "mlf-notifications";
+export const NOTIFICATIONS_CHANGED_EVENT = "meiyon:notifications-changed";
+const CHANNEL_NAME = "meiyon-notifications";
 
 let channel: BroadcastChannel | null = null;
 

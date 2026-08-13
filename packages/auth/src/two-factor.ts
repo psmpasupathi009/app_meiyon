@@ -1,13 +1,16 @@
 type TwoFactorResponse = { Status: string; Details: string };
 
-const DEV_SESSION_ID = "dev-bypass";
-const DEV_OTP = "0000";
+export const DEV_SESSION_ID = "dev-bypass";
+export const DEV_OTP = "0000";
 
-function isDevOtpBypass(): boolean {
-  return (
-    process.env.OTP_DEV_BYPASS === "1" &&
-    process.env.NODE_ENV !== "production"
-  );
+/**
+ * Local/dev: never send SMS unless OTP_LIVE=1.
+ * Production always uses 2Factor.
+ */
+export function isDevOtpBypass(): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  if (process.env.OTP_LIVE === "1") return false;
+  return true;
 }
 
 function getApiKey(): string {
@@ -17,7 +20,7 @@ function getApiKey(): string {
 }
 
 function getTemplateName(): string {
-  return (process.env.TWO_FACTOR_TEMPLATE_NAME || "saanru").trim();
+  return (process.env.TWO_FACTOR_TEMPLATE_NAME || "meiyon").trim();
 }
 
 export function toTwoFactorPhone(mobile91: string): string {
@@ -38,12 +41,12 @@ async function callSmsApi(path: string): Promise<TwoFactorResponse> {
   }
 }
 
-export async function sendOtpSms(mobile91: string): Promise<{ sessionId: string }> {
+export async function sendOtpSms(
+  mobile91: string
+): Promise<{ sessionId: string; bypassed: boolean }> {
   if (isDevOtpBypass()) {
-    console.log(
-      `[otp-dev] bypass send → ${mobile91}; use OTP ${DEV_OTP}`
-    );
-    return { sessionId: DEV_SESSION_ID };
+    console.log(`[otp-dev] no SMS → ${mobile91}; local OTP ${DEV_OTP}`);
+    return { sessionId: DEV_SESSION_ID, bypassed: true };
   }
 
   const phone = toTwoFactorPhone(mobile91);
@@ -52,7 +55,7 @@ export async function sendOtpSms(mobile91: string): Promise<{ sessionId: string 
   if (data.Status !== "Success" || !data.Details) {
     throw new Error(data.Details || "Failed to send SMS OTP");
   }
-  return { sessionId: data.Details };
+  return { sessionId: data.Details, bypassed: false };
 }
 
 export async function verifyOtpSms(sessionId: string, otp: string): Promise<boolean> {

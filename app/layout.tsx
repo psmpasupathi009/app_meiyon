@@ -10,7 +10,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "MEIYON Office Portal",
-  description: "Law office practice management — app.saanru.com",
+  description: "Law office practice management — app.meiyon",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

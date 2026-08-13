@@ -1,6 +1,9 @@
 import { prisma } from "@meiyon/db";
 
-export async function findOfficeHolidayForDate(dateKey: string) {
+export async function findOfficeHolidayForDate(
+  dateKey: string,
+  officeId?: string
+) {
   const delegate = (
     prisma as unknown as {
       officeHoliday?: {
@@ -12,6 +15,7 @@ export async function findOfficeHolidayForDate(dateKey: string) {
 
   const rows = await delegate.findMany({
     where: {
+      ...(officeId ? { officeId } : {}),
       fromDate: { lte: dateKey },
       toDate: { gte: dateKey },
     },

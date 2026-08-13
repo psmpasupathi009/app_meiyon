@@ -1,9 +1,4 @@
-import bcrypt from "bcryptjs";
-import {
-  PlatformRole,
-  UserRole,
-  type Prisma,
-} from "@prisma/client";
+import { PlatformRole } from "@prisma/client";
 import { prisma } from "../src/client";
 
 const GB = BigInt(1024 * 1024 * 1024);
@@ -12,20 +7,6 @@ async function nextPlatformId(entity: string, prefix: string, pad = 5) {
   const counter = await prisma.platformIdCounter.upsert({
     where: { entity },
     create: { entity, seq: 1 },
-    update: { seq: { increment: 1 } },
-  });
-  return `${prefix}-${String(counter.seq).padStart(pad, "0")}`;
-}
-
-async function nextOfficeId(
-  officeId: string,
-  entity: string,
-  prefix: string,
-  pad = 5
-) {
-  const counter = await prisma.idCounter.upsert({
-    where: { officeId_entity: { officeId, entity } },
-    create: { officeId, entity, seq: 1 },
     update: { seq: { increment: 1 } },
   });
   return `${prefix}-${String(counter.seq).padStart(pad, "0")}`;
@@ -125,44 +106,6 @@ const PLAN_SEEDS = [
   },
 ] as const;
 
-const PERMISSION_CATALOG: { module: string; action: string }[] = [
-  { module: "dashboard", action: "view" },
-  { module: "employees", action: "view" },
-  { module: "employees", action: "create" },
-  { module: "employees", action: "edit" },
-  { module: "employees", action: "deactivate" },
-  { module: "permissions", action: "view" },
-  { module: "permissions", action: "edit" },
-  { module: "activity", action: "view" },
-  { module: "clients", action: "view" },
-  { module: "clients", action: "create" },
-  { module: "clients", action: "edit" },
-  { module: "appointments", action: "view" },
-  { module: "appointments", action: "create" },
-  { module: "appointments", action: "edit" },
-  { module: "appointments", action: "cancel" },
-  { module: "cases", action: "view" },
-  { module: "cases", action: "create" },
-  { module: "cases", action: "edit" },
-  { module: "cases", action: "upload" },
-  { module: "accounts", action: "view" },
-  { module: "accounts", action: "create" },
-  { module: "accounts", action: "edit" },
-  { module: "tasks", action: "view" },
-  { module: "tasks", action: "create" },
-  { module: "tasks", action: "edit" },
-  { module: "reports", action: "view" },
-];
-
-const ADMIN_ROLE_PERMS: Record<UserRole, boolean> = {
-  admin: true,
-  sub_admin: true,
-  staff: false,
-  advocate: false,
-  accountant: false,
-  client: false,
-};
-
 function normalizeMobile(raw: string): string {
   const digits = raw.replace(/\D/g, "");
   if (digits.length === 10) return `91${digits}`;
@@ -205,188 +148,70 @@ async function seedPlans() {
 }
 
 async function seedPlatformOwner() {
-  const mobile = normalizeMobile(process.env.ADMIN_MOBILE ?? "8675762821");
+  const mobile = normalizeMobile(process.env.ADMIN_MOBILE ?? "");
+  if (!mobile) {
+    throw new Error("ADMIN_MOBILE is required to seed the super admin");
+  }
+
+  const roles = [PlatformRole.psm_super_admin, PlatformRole.platform_owner];
   const existing = await prisma.platformUser.findUnique({ where: { mobile } });
   if (existing) {
-    console.log(`  = Platform owner already exists (${existing.unitId})`);
+    await prisma.platformUser.update({
+      where: { id: existing.id },
+      data: {
+        roles: Array.from(new Set([...existing.roles, ...roles])),
+        isActive: true,
+      },
+    });
+    console.log(
+      `  ~ Super admin ${existing.unitId}${existing.pinHash ? " (PIN already set)" : " (set PIN after OTP login)"}`,
+    );
     return existing;
   }
 
   const unitId = await nextPlatformId("PADMIN", "PADMIN");
-  const pinHash = await bcrypt.hash("123456", 12);
   const owner = await prisma.platformUser.create({
     data: {
       unitId,
       mobile,
-      name: "Platform Owner",
-      roles: [PlatformRole.platform_owner],
-      pinHash,
+      name: "PSM Super Admin",
+      roles,
       isActive: true,
     },
   });
-  console.log(`  + Platform owner ${unitId} (mobile ${mobile}, PIN 123456)`);
+  console.log(`  + Super admin ${unitId} (mobile ${mobile}, no PIN — first login uses OTP)`);
   return owner;
 }
 
-async function seedDemoOffice() {
-  const adminMobile = normalizeMobile(process.env.ADMIN_MOBILE ?? "8675762821");
-  const existing = await prisma.office.findUnique({ where: { slug: "demo-chamber" } });
+async function seedMeiyonProduct() {
+  const adminUrl = process.env.NEXT_PUBLIC_MEIYON_ADMIN_URL ?? "/meiyon";
+  const existing = await prisma.product.findUnique({ where: { slug: "meiyon" } });
   if (existing) {
-    const admin = await prisma.user.findFirst({
-      where: { officeId: existing.id, mobile: adminMobile },
+    await prisma.product.update({
+      where: { slug: "meiyon" },
+      data: { name: "MEIYON", adminUrl, isActive: true },
     });
-    if (admin) {
-      console.log(`  = Demo office already exists (${existing.unitId})`);
-      return;
-    }
-    const pinHash = await bcrypt.hash("123456", 12);
-    const empUnitId = await nextOfficeId(existing.id, "EMP", "EMP");
-    await prisma.user.create({
-      data: {
-        unitId: empUnitId,
-        officeId: existing.id,
-        officeUnitId: existing.unitId,
-        mobile: adminMobile,
-        name: "Demo Admin",
-        roles: [UserRole.admin],
-        designation: "Managing Partner",
-        pinHash,
-        isActive: true,
-      },
-    });
-    console.log(`  + Demo office admin restored (${empUnitId}, PIN 123456)`);
-    return;
+    console.log(`  ~ Product MEIYON updated (${adminUrl})`);
+    return existing;
   }
 
-  const officeUnitId = await nextPlatformId("OFF", "OFF");
-  const trialPlan = await prisma.plan.findUnique({ where: { code: "professional" } });
-  if (!trialPlan) throw new Error("Plans must be seeded first");
-
-  const office = await prisma.office.create({
+  const product = await prisma.product.create({
     data: {
-      unitId: officeUnitId,
-      name: "Demo Law Chamber",
-      slug: "demo-chamber",
-      displayName: "Demo Law Chamber",
-      status: "active",
-      phone: "9876543210",
-      email: "admin@demo-chamber.example",
-      state: "Tamil Nadu",
-    },
-  });
-
-  const subUnitId = await nextPlatformId("SUB", "SUB");
-  const trialEnd = new Date();
-  trialEnd.setDate(trialEnd.getDate() + 14);
-
-  await prisma.subscription.create({
-    data: {
-      unitId: subUnitId,
-      officeId: office.id,
-      officeUnitId: office.unitId,
-      planId: trialPlan.id,
-      planUnitId: trialPlan.unitId,
-      status: "trialing",
-      billingCycle: "monthly",
-      trialEndsAt: trialEnd,
-      currentPeriodStart: new Date(),
-      currentPeriodEnd: trialEnd,
-    },
-  });
-
-  const entities = [
-    "employee",
-    "client",
-    "case",
-    "hearing",
-    "appointment",
-    "payment",
-    "expense",
-    "document",
-    "officeTask",
-    "notification",
-  ];
-  for (const entity of entities) {
-    await prisma.idCounter.create({
-      data: { officeId: office.id, entity, seq: 0 },
-    });
-  }
-
-  for (const { module, action } of PERMISSION_CATALOG) {
-    for (const role of Object.keys(ADMIN_ROLE_PERMS) as UserRole[]) {
-      const allowed =
-        role === "admin" ||
-        (role === "sub_admin" &&
-          !["permissions.edit", "employees.deactivate"].includes(
-            `${module}.${action}`
-          )) ||
-        (role === "staff" &&
-          ["dashboard.view", "cases.view", "clients.view"].includes(
-            `${module}.${action}`
-          )) ||
-        (role === "advocate" &&
-          [
-            "dashboard.view",
-            "cases.view",
-            "cases.edit",
-            "appointments.view",
-          ].includes(`${module}.${action}`)) ||
-        (role === "client" &&
-          [
-            "dashboard.view",
-            "cases.view",
-            "appointments.view",
-            "appointments.create",
-          ].includes(`${module}.${action}`));
-
-      await prisma.rolePermission.create({
-        data: { officeId: office.id, role, module, action, allowed },
-      });
-    }
-  }
-
-  const pinHash = await bcrypt.hash("123456", 12);
-  let empUnitId = await nextOfficeId(office.id, "employee", "EMP");
-  // Avoid colliding with leftover unitIds from partial seeds
-  for (let i = 0; i < 20; i++) {
-    const clash = await prisma.user.findUnique({ where: { unitId: empUnitId } });
-    if (!clash) break;
-    empUnitId = await nextOfficeId(office.id, "employee", "EMP");
-  }
-
-  await prisma.user.create({
-    data: {
-      unitId: empUnitId,
-      officeId: office.id,
-      officeUnitId: office.unitId,
-      mobile: adminMobile,
-      name: "Demo Admin",
-      roles: [UserRole.admin],
-      designation: "Managing Partner",
-      pinHash,
+      slug: "meiyon",
+      name: "MEIYON",
+      adminUrl,
       isActive: true,
     },
   });
-
-  await prisma.platformAuditLog.create({
-    data: {
-      action: "office.created",
-      entityType: "Office",
-      entityUnitId: office.unitId,
-      meta: { name: office.name, plan: trialPlan.code },
-    },
-  });
-
-  console.log(
-    `  + Demo office ${officeUnitId} with admin ${empUnitId} (PIN 123456)`
-  );
+  console.log(`  + Product MEIYON (${adminUrl})`);
+  return product;
 }
 
 async function main() {
-  console.log("Seeding MEIYON database…");
+  console.log("Seeding MEIYON catalog (plans + super admin + product, no demo data)…");
   await seedPlans();
   await seedPlatformOwner();
-  await seedDemoOffice();
+  await seedMeiyonProduct();
   console.log("Done.");
 }
 

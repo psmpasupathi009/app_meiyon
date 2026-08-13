@@ -1,5 +1,11 @@
 import { prisma } from "@meiyon/db";
-import { sendOtpSchema, sendOtpSms, normalizeMobile } from "@meiyon/auth";
+import {
+  sendOtpSchema,
+  sendOtpSms,
+  normalizeMobile,
+  isDevOtpBypass,
+  DEV_OTP,
+} from "@meiyon/auth";
 import { jsonFail, jsonOk } from "@/lib/api/response";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -36,7 +42,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { sessionId } = await sendOtpSms(mobile);
+    const { sessionId, bypassed } = await sendOtpSms(mobile);
     await prisma.otpSession.deleteMany({ where: { mobile, purpose: parsed.data.purpose } });
     await prisma.otpSession.create({
       data: {
@@ -46,7 +52,12 @@ export async function POST(request: Request) {
         expiresAt: new Date(Date.now() + OTP_TTL_MS),
       },
     });
-    return jsonOk({ message: "OTP sent", expiresInSec: OTP_TTL_MS / 1000 });
+    return jsonOk({
+      message: bypassed || isDevOtpBypass() ? "OTP skipped locally (no SMS)" : "OTP sent",
+      bypassed: bypassed || isDevOtpBypass(),
+      ...(bypassed || isDevOtpBypass() ? { otp: DEV_OTP } : {}),
+      expiresInSec: OTP_TTL_MS / 1000,
+    });
   } catch (err) {
     return jsonFail("OTP_SEND_FAILED", err instanceof Error ? err.message : "Failed to send OTP", 502);
   }

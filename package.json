@@ -11,6 +11,7 @@
     "db:push": "npm run push --workspace=@meiyon/db",
     "db:seed": "npm run seed --workspace=@meiyon/db",
     "db:ping": "npm run ping --workspace=@meiyon/db",
+    "db:purge-demo": "npm run purge-demo --workspace=@meiyon/db",
     "smoke": "dotenv -e .env -- tsx scripts/smoke-e2e.ts"
   },
   "workspaces": [

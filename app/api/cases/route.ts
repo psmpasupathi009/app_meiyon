@@ -63,6 +63,7 @@ export const GET = apiHandler(async (request) => {
 
   const { searchParams } = new URL(request.url);
   const filters = parseCaseListFilters(searchParams);
+  filters.officeId = user.officeId;
 
   if (isClientOnlyUser(user.roles)) {
     const cid = requireClientUnitId(user);

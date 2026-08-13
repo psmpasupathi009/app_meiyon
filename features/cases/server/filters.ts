@@ -17,6 +17,7 @@ export type CaseListFilters = {
   /** Board view: exclude archived unless includeArchived. */
   view?: "board";
   includeArchived?: boolean;
+  officeId?: string;
 };
 
 export function parseCaseListFilters(
@@ -54,9 +55,11 @@ export function buildCaseListWhere(
     battaDue,
     view,
     includeArchived,
+    officeId,
   } = filters;
 
   const where: Prisma.CaseWhereInput = {
+    ...(officeId ? { officeId } : {}),
     ...(clientUnitId ? { clientUnitId } : {}),
     ...(status ? { status: status as never } : {}),
     ...(caseType ? { caseType } : {}),

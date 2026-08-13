@@ -41,6 +41,7 @@ export async function buildDashboardSummary(
     permissions?: string[];
   }
 ): Promise<Record<string, unknown>> {
+  const officeId = user.officeId;
   const permSet = user.permissions
     ? new Set(user.permissions)
     : null;
@@ -112,41 +113,46 @@ export async function buildDashboardSummary(
           tomorrowHearingCount,
           todayCases,
         ] = await Promise.all([
-          prisma.case.count(),
+          prisma.case.count({ where: { officeId } }),
           prisma.case.count({
-            where: { status: { in: [...PRE_NUMBER_STATUSES] } },
+            where: { officeId, status: { in: [...PRE_NUMBER_STATUSES] } },
           }),
-          prisma.case.count({ where: { status: "active" } }),
+          prisma.case.count({ where: { officeId, status: "active" } }),
           prisma.case.count({
-            where: { status: { in: [...OPEN_CASE_STATUSES] } },
+            where: { officeId, status: { in: [...OPEN_CASE_STATUSES] } },
           }),
           prisma.case.count({
             where: {
+              officeId,
               nextHearingAt: { gte: todayStart, lt: weekEnd },
               status: { in: [...OPEN_CASE_STATUSES] },
             },
           }),
           prisma.case.count({
             where: {
+              officeId,
               OR: [{ caseNumber: null }, { caseNumber: "" }],
               status: { in: [...PRE_NUMBER_STATUSES] },
             },
           }),
           prisma.case.count({
             where: {
+              officeId,
               battaDue: true,
               status: { in: [...OPEN_CASE_STATUSES] },
             },
           }),
-          prisma.case.count({ where: { status: "filing_defect" } }),
+          prisma.case.count({ where: { officeId, status: "filing_defect" } }),
           prisma.hearing.count({
             where: {
+              officeId,
               hearingDate: { gte: tomorrowStart, lte: tomorrowEnd },
               isAdjourned: false,
             },
           }),
           prisma.hearing.findMany({
             where: {
+              officeId,
               hearingDate: { gte: todayStart, lte: todayEnd },
               isAdjourned: false,
             },
@@ -164,6 +170,7 @@ export async function buildDashboardSummary(
         const casesForToday = caseUnitIds.length
           ? await prisma.case.findMany({
               where: {
+                officeId,
                 unitId: { in: caseUnitIds },
                 status: { in: [...OPEN_CASE_STATUSES] },
               },
@@ -205,13 +212,14 @@ export async function buildDashboardSummary(
         const [clients, advocates] = await Promise.all([
           clientIds.length
             ? prisma.client.findMany({
-                where: { id: { in: clientIds } },
+                where: { officeId, id: { in: clientIds } },
                 select: { id: true, unitId: true, name: true, mobile: true },
               })
             : Promise.resolve([]),
           advocateMobiles.length
             ? prisma.user.findMany({
                 where: {
+                  officeId,
                   OR: advocateMobiles.flatMap((m) => {
                     const ten = toTen(m);
                     return [
@@ -284,15 +292,15 @@ export async function buildDashboardSummary(
     : Promise.resolve(null);
 
   const clientsPromise = canClients
-    ? prisma.client.count().then((total) => ({ total }))
+    ? prisma.client.count({ where: { officeId } }).then((total) => ({ total }))
     : Promise.resolve(null);
 
   const employeesPromise = canEmployees
     ? Promise.all([
-        prisma.user.count(),
-        prisma.user.count({ where: { isActive: true } }),
+        prisma.user.count({ where: { officeId } }),
+        prisma.user.count({ where: { officeId, isActive: true } }),
         prisma.user.count({
-          where: { isActive: true, roles: { has: "advocate" } },
+          where: { officeId, isActive: true, roles: { has: "advocate" } },
         }),
       ]).then(([total, active, advocates]) => ({ total, active, advocates }))
     : Promise.resolve(null);
@@ -300,14 +308,14 @@ export async function buildDashboardSummary(
   const accountsPromise = canAccounts
     ? Promise.all([
         prisma.cashPayment.aggregate({
-          where: { status: "pending" },
+          where: { officeId, status: "pending" },
           _sum: { amount: true },
         }),
         prisma.cashPayment.aggregate({
-          where: { status: "paid", paidOn: { gte: startOfMonth } },
+          where: { officeId, status: "paid", paidOn: { gte: startOfMonth } },
           _sum: { amount: true },
         }),
-        prisma.cashPayment.count({ where: { status: "pending" } }),
+        prisma.cashPayment.count({ where: { officeId, status: "pending" } }),
       ]).then(([pendingAgg, paidThisMonthAgg, pendingCount]) => ({
         pendingPayments: pendingCount,
         pendingAmount: pendingAgg._sum.amount ?? 0,
@@ -324,18 +332,21 @@ export async function buildDashboardSummary(
         const [todayCount, weekCount, todayRows, weekRows] = await Promise.all([
           prisma.appointment.count({
             where: {
+              officeId,
               status: "scheduled",
               scheduledAt: { gte: todayStart, lte: todayEnd },
             },
           }),
           prisma.appointment.count({
             where: {
+              officeId,
               status: "scheduled",
               scheduledAt: { gte: todayStart, lt: weekEnd },
             },
           }),
           prisma.appointment.findMany({
             where: {
+              officeId,
               status: "scheduled",
               scheduledAt: { gte: todayStart, lte: todayEnd },
             },
@@ -344,6 +355,7 @@ export async function buildDashboardSummary(
           }),
           prisma.appointment.findMany({
             where: {
+              officeId,
               status: "scheduled",
               scheduledAt: { gte: todayStart, lt: weekEnd },
             },
@@ -371,13 +383,14 @@ export async function buildDashboardSummary(
         const [apptClients, apptAdvocates] = await Promise.all([
           clientUnitIds.length
             ? prisma.client.findMany({
-                where: { unitId: { in: clientUnitIds } },
+                where: { officeId, unitId: { in: clientUnitIds } },
                 select: { unitId: true, name: true, mobile: true },
               })
             : Promise.resolve([]),
           apptAdvMobiles.length
             ? prisma.user.findMany({
                 where: {
+                  officeId,
                   OR: apptAdvMobiles.flatMap((m) => {
                     const ten = toTen(m);
                     return [
@@ -515,6 +528,7 @@ export async function buildDashboardSummary(
         const [dueToday, overdue] = await Promise.all([
           prisma.officeTask.count({
             where: {
+              officeId,
               status: "open",
               ...assigneeScope,
               OR: [
@@ -525,6 +539,7 @@ export async function buildDashboardSummary(
           }),
           prisma.officeTask.count({
             where: {
+              officeId,
               status: "open",
               ...assigneeScope,
               OR: [
@@ -555,10 +570,11 @@ export async function buildDashboardSummary(
                 },
               }),
               canApproveLeave
-                ? prisma.leaveRequest.count({ where: { status: "pending" } })
+                ? prisma.leaveRequest.count({ where: { officeId, status: "pending" } })
                 : Promise.resolve(null),
               prisma.leaveRequest.findFirst({
                 where: {
+                  officeId,
                   userId: user.id,
                   status: "approved",
                   fromDate: { lte: todayKey },
@@ -570,7 +586,7 @@ export async function buildDashboardSummary(
                 try {
                   return await (
                     await import("@/features/hrms/server/office-holiday")
-                  ).findOfficeHolidayForDate(todayKey);
+                  ).findOfficeHolidayForDate(todayKey, officeId);
                 } catch {
                   return null;
                 }

@@ -74,15 +74,11 @@ export default async function PortalLayout({
 
   if (!user) redirect("/login");
 
-  const [office, subCtx] = await Promise.all([
-    prisma.office.findUnique({
-      where: { unitId: user.officeUnitId },
-      select: { id: true, displayName: true, name: true },
-    }),
-    prisma.office
-      .findUnique({ where: { unitId: user.officeUnitId }, select: { id: true } })
-      .then((o) => (o ? getOfficeSubscription(o.id) : null)),
-  ]);
+  const office = await prisma.office.findUnique({
+    where: { unitId: user.officeUnitId },
+    select: { id: true, displayName: true, name: true },
+  });
+  const subCtx = office ? await getOfficeSubscription(office.id) : null;
 
   const planCode = subCtx?.plan?.code ?? null;
   const nav = visibleNav(user, planCode);

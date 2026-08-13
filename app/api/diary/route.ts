@@ -67,6 +67,7 @@ export const GET = apiHandler(async (request) => {
       ? Promise.resolve([])
       : prisma.hearing.findMany({
           where: {
+            officeId: user.officeId,
             hearingDate: { gte: start, lte: end },
             isAdjourned: false,
           },
@@ -81,6 +82,7 @@ export const GET = apiHandler(async (request) => {
         ? Promise.resolve([])
         : prisma.appointment.findMany({
             where: {
+              officeId: user.officeId,
               scheduledAt: { gte: start, lte: end },
               status: "scheduled",
               ...(advocateKeys && advocateKeys.length
@@ -94,6 +96,7 @@ export const GET = apiHandler(async (request) => {
   const tasksPromise = canTasks
     ? prisma.officeTask.findMany({
         where: {
+          officeId: user.officeId,
           status: "open",
           ...(isOfficeAdmin ? {} : { assigneeUnitId: user.unitId }),
           OR: [
@@ -129,7 +132,7 @@ export const GET = apiHandler(async (request) => {
   const [cases, assigneesEarly] = await Promise.all([
     caseUnitIdsForLookup.length
       ? prisma.case.findMany({
-          where: { unitId: { in: caseUnitIdsForLookup } },
+          where: { officeId: user.officeId, unitId: { in: caseUnitIdsForLookup } },
           select: {
             unitId: true,
             caseNumber: true,

@@ -9,6 +9,7 @@
     "push": "dotenv -e ../../.env -- prisma db push --schema=prisma/schema.prisma",
     "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
     "ping": "dotenv -e ../../.env -- tsx scripts/ping.ts",
+    "purge-demo": "dotenv -e ../../.env -- tsx scripts/purge-demo.ts",
     "fix:office-unit-ids": "dotenv -e ../../.env -- tsx scripts/fix-null-office-unit-ids.ts"
   },
   "prisma": {

@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowRight, ShieldCheck } from "lucide-react";
-import { displayMobile } from "@meiyon/auth";
+import { displayMobile } from "./mobile";
+import { isWeakPin } from "./pin";
 
 type OfficeOption = { officeUnitId: string; officeName: string; requiresPin: boolean };
 type Step = "mobile" | "office" | "pin" | "otp" | "setup_pin" | "otp_forgot" | "reset_pin";
@@ -101,7 +102,14 @@ export function LoginForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    return res.json();
+    try {
+      return await res.json();
+    } catch {
+      return {
+        ok: false,
+        error: { message: `Server error (${res.status}). Try again.` },
+      };
+    }
   }
 
   async function checkMobile(e: React.FormEvent) {
@@ -114,6 +122,7 @@ export function LoginForm({
         message?: string;
         officeUnitId?: string;
         offices?: OfficeOption[];
+        otpPending?: boolean;
       }>("/api/auth/check-mobile", { mobile });
       if (!json.ok) throw new Error(json.error?.message ?? "Failed");
       const data = json.data!;
@@ -127,8 +136,13 @@ export function LoginForm({
         return;
       }
       if (data.officeUnitId) setOfficeUnitId(data.officeUnitId);
-      if (data.status === "otp_required") {
+      if (data.status === "otp_required" || data.status === "setup_pin") {
         setOtpPurpose("setup");
+        if (data.otpPending) {
+          setStep("otp");
+          setOtp("");
+          return;
+        }
         await sendOtpFlow("setup");
         return;
       }
@@ -140,45 +154,77 @@ export function LoginForm({
     }
   }
 
-  async function sendOtpFlow(purpose: "setup" | "forgot_pin") {
-    setLoading(true);
-    const json = await api("/api/auth/send-otp", {
+  async function completeOtpVerify(code: string, purpose: "setup" | "forgot_pin") {
+    const json = await api<{ otpProofToken: string }>("/api/auth/verify-otp", {
       mobile,
+      otp: code,
       purpose,
       officeUnitId: officeUnitId || undefined,
     });
-    setLoading(false);
     if (!json.ok) {
-      setError(json.error?.message ?? "Failed to send OTP");
-      return;
+      throw new Error(json.error?.message ?? "Invalid OTP");
     }
+    setOtpProofToken(json.data!.otpProofToken);
     setOtpPurpose(purpose);
-    setStep(purpose === "forgot_pin" ? "otp_forgot" : "otp");
-    setOtp("");
+    setStep(purpose === "forgot_pin" ? "reset_pin" : "setup_pin");
+    setPin("");
+    setConfirmPin("");
+  }
+
+  async function sendOtpFlow(purpose: "setup" | "forgot_pin") {
+    setLoading(true);
+    setError("");
+    try {
+      const json = await api<{ bypassed?: boolean; otp?: string }>("/api/auth/send-otp", {
+        mobile,
+        purpose,
+        officeUnitId: officeUnitId || undefined,
+      });
+      if (!json.ok) throw new Error(json.error?.message ?? "Failed to send OTP");
+      const data = json.data ?? {};
+      if (data.bypassed) {
+        await completeOtpVerify(data.otp || "0000", purpose);
+        return;
+      }
+      setOtpPurpose(purpose);
+      setStep(purpose === "forgot_pin" ? "otp_forgot" : "otp");
+      setOtp("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send OTP");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function verifyOtp(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const json = await api<{ otpProofToken: string }>("/api/auth/verify-otp", {
-      mobile,
-      otp,
-      purpose: otpPurpose,
-      officeUnitId: officeUnitId || undefined,
-    });
-    setLoading(false);
-    if (!json.ok) {
-      setError(json.error?.message ?? "Invalid OTP");
-      return;
+    setError("");
+    try {
+      await completeOtpVerify(otp, otpPurpose);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invalid OTP");
+    } finally {
+      setLoading(false);
     }
-    setOtpProofToken(json.data!.otpProofToken);
-    setStep(otpPurpose === "forgot_pin" ? "reset_pin" : "setup_pin");
-    setPin("");
-    setConfirmPin("");
   }
 
   async function setupPin(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
+    if (pin !== confirmPin) {
+      setError("PINs do not match");
+      return;
+    }
+    if (isWeakPin(pin)) {
+      setError("Choose a stronger PIN (avoid 123456 and repeats)");
+      return;
+    }
+    if (!otpProofToken) {
+      setError("OTP verification expired. Start again.");
+      setStep("mobile");
+      return;
+    }
     setLoading(true);
     const path =
       otpPurpose === "forgot_pin" ? "/api/auth/forgot-pin/reset" : "/api/auth/setup-pin";
@@ -416,7 +462,7 @@ export function LoginForm({
           {(step === "otp" || step === "otp_forgot") && (
             <form onSubmit={verifyOtp} className="space-y-4">
               <p className="text-sm text-zinc-500">
-                OTP sent to {displayMobile(`91${mobile}`)}
+                Enter the 4-digit OTP for {displayMobile(`91${mobile}`)}
               </p>
               <div className="relative" onClick={() => (document.querySelector("input[type=text]") as HTMLInputElement | null)?.focus()}>
                 <OtpBoxes value={otp} onChange={setOtp} />
@@ -428,12 +474,23 @@ export function LoginForm({
               >
                 {loading ? "Verifying…" : "Verify OTP"}
               </button>
+              <button
+                type="button"
+                onClick={() => sendOtpFlow(otpPurpose)}
+                disabled={loading}
+                className="w-full text-center text-sm text-brand hover:text-navy disabled:opacity-50"
+              >
+                Resend OTP
+              </button>
             </form>
           )}
 
           {/* ── Set/Reset PIN ── */}
           {(step === "setup_pin" || step === "reset_pin") && (
             <form onSubmit={setupPin} className="space-y-4">
+              <p className="text-sm text-zinc-500">
+                Choose a 6-digit PIN. Avoid 123456, repeats, or simple sequences.
+              </p>
               <div>
                 <label className="block text-sm font-medium text-zinc-700 mb-1.5">
                   New PIN
@@ -468,7 +525,12 @@ export function LoginForm({
               </div>
               <button
                 type="submit"
-                disabled={loading || pin.length !== 6}
+                disabled={
+                  loading ||
+                  pin.length !== 6 ||
+                  confirmPin.length !== 6 ||
+                  pin !== confirmPin
+                }
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {loading ? "Saving…" : "Save PIN & sign in"}

@@ -65,9 +65,25 @@ export async function POST(request: Request) {
 
   if (activeOffices.length === 1) {
     const o = activeOffices[0];
+    if (o.hasPin) {
+      return jsonOk({
+        status: "pin" as const,
+        officeUnitId: o.officeUnitId,
+      });
+    }
+    const pendingSetup = await prisma.otpSession.findFirst({
+      where: {
+        mobile,
+        purpose: "setup",
+        verified: false,
+        expiresAt: { gt: new Date() },
+      },
+      select: { id: true },
+    });
     return jsonOk({
-      status: o.hasPin ? ("pin" as const) : ("otp_required" as const),
+      status: "otp_required" as const,
       officeUnitId: o.officeUnitId,
+      otpPending: Boolean(pendingSetup),
     });
   }
 

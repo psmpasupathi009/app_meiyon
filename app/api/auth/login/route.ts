@@ -64,12 +64,19 @@ export async function POST(request: Request) {
   }
 
   const office = await prisma.office.findUnique({ where: { id: user.officeId } });
-  if (!office || office.status !== "active") {
+  if (!office || office.status === "suspended" || office.status === "cancelled") {
     return jsonFail("OFFICE_SUSPENDED", "Office access is suspended", 403);
+  }
+  if (office.status !== "active") {
+    return jsonFail("OFFICE_SUSPENDED", "Office access is not active", 403);
   }
 
   const sub = await prisma.subscription.findFirst({ where: { officeId: user.officeId } });
-  if (sub?.status === "suspended" || sub?.status === "expired") {
+  if (
+    sub?.status === "suspended" ||
+    sub?.status === "expired" ||
+    sub?.status === "cancelled"
+  ) {
     return jsonFail("SUBSCRIPTION_INACTIVE", "Subscription inactive. Contact admin.", 403);
   }
 

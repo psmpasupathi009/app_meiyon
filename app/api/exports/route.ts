@@ -61,7 +61,7 @@ export const GET = apiHandler(async (request) => {
   }
 
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "MLF";
+  workbook.creator = "MEIYON";
 
   if (type === "attendance") {
     if (!isModuleEnabled("hrms")) {
@@ -717,7 +717,7 @@ export const GET = apiHandler(async (request) => {
     headers: {
       "Content-Type":
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="mlf-${type}.xlsx"`,
+      "Content-Disposition": `attachment; filename="meiyon-${type}.xlsx"`,
     },
   });
 });
