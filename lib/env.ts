@@ -1,54 +1,82 @@
-import { z } from "zod";
+const PLACEHOLDER_HINTS = ["change-me", "local-dev", "placeholder", "example"];
 
-const PLACEHOLDER_SECRETS = new Set([
-  "change-me-to-a-long-random-string",
-  "change-me-cron-secret-long-random",
-]);
-
-const envSchema = z.object({
-  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
-  JWT_SECRET_OP: z.string().optional(),
-  JWT_SECRET: z.string().optional(),
-  CRON_SECRET: z.string().optional(),
-  NODE_ENV: z.enum(["development", "test", "production"]).optional(),
-});
-
-let validated = false;
-
-function jwtSecret(): string {
-  return process.env.JWT_SECRET_OP ?? process.env.JWT_SECRET ?? "";
+function isProduction(): boolean {
+  return process.env.NODE_ENV === "production";
 }
 
-/** Fail fast on boot when required secrets are missing or weak (production). */
-export function assertEnv(): void {
-  if (validated) return;
+function isWeakSecret(value: string, min = 24): boolean {
+  const v = value.trim();
+  if (v.length < min) return true;
+  const lower = v.toLowerCase();
+  return PLACEHOLDER_HINTS.some((h) => lower.includes(h));
+}
 
-  const parsed = envSchema.safeParse(process.env);
-  if (!parsed.success) {
-    const msg = parsed.error.issues.map((i) => i.message).join("; ");
-    throw new Error(`Invalid environment: ${msg}`);
+function requireHttpsUrl(name: string, value: string | undefined): void {
+  const v = (value ?? "").trim();
+  if (!v.startsWith("https://") || v.includes("localhost")) {
+    throw new Error(
+      `Invalid environment: ${name} must be a public https URL in production`
+    );
   }
+}
 
-  const jwt = jwtSecret();
+export function assertEnv(): void {
+  const db = process.env.DATABASE_URL?.trim() ?? "";
+  if (!db) throw new Error("Invalid environment: DATABASE_URL is required");
+
+  const jwt = process.env.JWT_SECRET_OP?.trim() ?? "";
   if (jwt.length < 32) {
     throw new Error(
       "Invalid environment: JWT_SECRET_OP must be at least 32 characters"
     );
   }
 
-  if (process.env.NODE_ENV === "production") {
-    if (PLACEHOLDER_SECRETS.has(jwt)) {
-      throw new Error(
-        "Invalid environment: JWT_SECRET_OP must not use the example placeholder in production"
-      );
-    }
-    const cron = process.env.CRON_SECRET?.trim() ?? "";
-    if (cron.length < 24 || PLACEHOLDER_SECRETS.has(cron)) {
-      throw new Error(
-        "Invalid environment: CRON_SECRET must be a long random string in production"
-      );
-    }
+  if (!isProduction()) return;
+
+  if (isWeakSecret(jwt, 32)) {
+    throw new Error(
+      "Invalid environment: JWT_SECRET_OP must be a unique production secret (not a local placeholder)"
+    );
   }
 
-  validated = true;
+  const cron = process.env.CRON_SECRET?.trim() ?? "";
+  if (isWeakSecret(cron, 24)) {
+    throw new Error(
+      "Invalid environment: CRON_SECRET must be a long random string in production"
+    );
+  }
+
+  if (!process.env.TWO_FACTOR_API_KEY?.trim()) {
+    throw new Error("Invalid environment: TWO_FACTOR_API_KEY is required in production");
+  }
+
+  requireHttpsUrl("NEXT_PUBLIC_PORTAL_URL", process.env.NEXT_PUBLIC_PORTAL_URL);
+  requireHttpsUrl("NEXT_PUBLIC_ADMIN_URL", process.env.NEXT_PUBLIC_ADMIN_URL);
+  requireHttpsUrl("NEXT_PUBLIC_MARKETING_URL", process.env.NEXT_PUBLIC_MARKETING_URL);
+
+  const rzp = process.env.RAZORPAY_KEY_ID?.trim() ?? "";
+  const rzpPub =
+    process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID?.trim() || rzp;
+  if (!rzp.startsWith("rzp_live_") || !rzpPub.startsWith("rzp_live_")) {
+    throw new Error(
+      "Invalid environment: use Razorpay live keys (rzp_live_) in production"
+    );
+  }
+  if (!process.env.RAZORPAY_KEY_SECRET?.trim()) {
+    throw new Error("Invalid environment: RAZORPAY_KEY_SECRET is required in production");
+  }
+  if (!process.env.RAZORPAY_WEBHOOK_SECRET?.trim()) {
+    throw new Error(
+      "Invalid environment: RAZORPAY_WEBHOOK_SECRET is required in production"
+    );
+  }
+
+  const cloud =
+    process.env.CLOUDINARY_URL?.trim() ||
+    (process.env.CLOUDINARY_CLOUD_NAME?.trim() &&
+      process.env.CLOUDINARY_API_KEY?.trim() &&
+      process.env.CLOUDINARY_API_SECRET?.trim());
+  if (!cloud) {
+    throw new Error("Invalid environment: Cloudinary credentials are required in production");
+  }
 }

@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   transpilePackages: ["@meiyon/db", "@meiyon/auth", "@meiyon/config", "@meiyon/ui", "@meiyon/billing"],
   images: {
     remotePatterns: [
