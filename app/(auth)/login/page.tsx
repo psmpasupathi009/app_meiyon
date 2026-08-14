@@ -8,6 +8,7 @@ export default function LoginPage() {
       title="Office Portal"
       subtitle="Sign in with your registered mobile number"
       enableOfficePicker
+      disclaimer="MEIYON is practice-management software. PSM Softwares is not a law firm and does not solicit legal work (BCI Rule 36)."
     />
   );
 }

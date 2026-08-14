@@ -30,6 +30,7 @@ import { istDateKey, istDayBounds, formatIstTime } from "@/lib/utils/ist";
 import { displayMobile } from "@/lib/auth/mobile";
 import { containsInsensitive } from "@/lib/db/search";
 import { isModuleEnabled } from "@meiyon/config";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 import {
   attendanceQueryScope,
   isInvalidAttendanceDateRange,
@@ -58,6 +59,8 @@ export const GET = apiHandler(async (request) => {
   if (type !== "attendance") {
     const reportsGate = await requirePerm(request, "reports", "view");
     if (!reportsGate.user) return reportsGate.response;
+    const planFail = await requirePlanModule(reportsGate.user, "reports");
+    if (planFail) return planFail;
   }
 
   const workbook = new ExcelJS.Workbook();
@@ -69,6 +72,8 @@ export const GET = apiHandler(async (request) => {
     }
     const { user, response } = await requireUser(request);
     if (!user) return response;
+    const planFail = await requirePlanModule(user, "hrms");
+    if (planFail) return planFail;
 
     const [canOwn, canManage] = await Promise.all([
       hasPermission(user, "hrms", "own_attendance"),

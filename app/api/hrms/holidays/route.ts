@@ -8,6 +8,7 @@ import {
 } from "@/lib/api/response";
 import { requirePerm, requireUser } from "@/lib/api/guard";
 import { hasPermission, requireModuleEnabled } from "@/lib/rbac";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 import { prisma } from "@meiyon/db";
 import { nextUnitId } from "@/lib/ids";
 import { writeAudit, pickAuditFields } from "@/lib/audit";
@@ -56,6 +57,8 @@ async function notifyHoliday(
 export const GET = apiHandler(async (request) => {
   const { user, response } = await requireUser(request);
   if (!user) return response;
+  const planFail = await requirePlanModule(user, "hrms");
+  if (planFail) return planFail;
   const modFail = requireModuleEnabled("hrms");
   if (modFail) return modFail;
   const canView =
@@ -103,6 +106,9 @@ export const POST = apiHandler(async (request) => {
     "manage_attendance"
   );
   if (!user) return response;
+
+  const planFail = await requirePlanModule(user, "hrms");
+  if (planFail) return planFail;
 
   const raw = await request.json();
   const parsed = createOfficeHolidaySchema.safeParse(raw);

@@ -1,8 +1,8 @@
 import { prisma } from "@meiyon/db";
 import { verifyOtpSchema, verifyOtpSms, signOtpProofToken, normalizeMobile } from "@meiyon/auth";
-import { jsonFail, jsonOk } from "@/lib/api/response";
+import { jsonFail, jsonOk, apiHandler } from "@/lib/api/response";
 
-export async function POST(request: Request) {
+export const POST = apiHandler(async (request) => {
   const body = await request.json();
   const parsed = verifyOtpSchema.safeParse(body);
   if (!parsed.success) {
@@ -42,4 +42,4 @@ export async function POST(request: Request) {
   });
 
   return jsonOk({ otpProofToken });
-}
+});

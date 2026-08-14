@@ -3,10 +3,14 @@ import { requirePerm } from "@/lib/api/guard";
 import { istDateKey } from "@/lib/utils/ist";
 import { ymdSchema } from "@/lib/validations/hrms.schema";
 import { buildPresenceBoard } from "@/features/hrms/server/presence";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 
 export const GET = apiHandler(async (request) => {
   const { user, response } = await requirePerm(request, "hrms", "manage_attendance");
   if (!user) return response;
+
+  const planFail = await requirePlanModule(user, "hrms");
+  if (planFail) return planFail;
 
   const { searchParams } = new URL(request.url);
   const rawDate = searchParams.get("date")?.trim() || istDateKey();

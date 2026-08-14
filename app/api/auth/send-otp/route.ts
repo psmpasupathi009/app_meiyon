@@ -6,7 +6,7 @@ import {
   isDevOtpBypass,
   DEV_OTP,
 } from "@meiyon/auth";
-import { jsonFail, jsonOk } from "@/lib/api/response";
+import { jsonFail, jsonOk, apiHandler } from "@/lib/api/response";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 
@@ -18,7 +18,7 @@ async function resolveUser(mobile: string, officeUnitId?: string) {
   return users.find((u) => u.officeUnitId === officeUnitId) ?? null;
 }
 
-export async function POST(request: Request) {
+export const POST = apiHandler(async (request) => {
   const body = await request.json();
   const parsed = sendOtpSchema.safeParse(body);
   if (!parsed.success) {
@@ -61,4 +61,4 @@ export async function POST(request: Request) {
   } catch (err) {
     return jsonFail("OTP_SEND_FAILED", err instanceof Error ? err.message : "Failed to send OTP", 502);
   }
-}
+});

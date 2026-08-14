@@ -27,12 +27,14 @@ export function planHasModule(planCode: string, moduleKey: string): boolean {
   return modules.includes(moduleKey);
 }
 
-/** Map nav module to plan entitlement key */
+/** Map nav / API module to plan entitlement key */
 export function modulePlanKey(module: string): string {
   const map: Record<string, string> = {
     accounts: "accounts",
     expenses: "expenses",
     dak: "dak",
+    documents: "documents",
+    csv_imports: "csv_imports",
     hrms: "hrms",
     reports: "reports_full",
   };

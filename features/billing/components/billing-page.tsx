@@ -25,6 +25,7 @@ type SubData = {
     currentPeriodStart: string | null;
     currentPeriodEnd: string | null;
     trialEndsAt: string | null;
+    cancelAtPeriodEnd: boolean;
   } | null;
   plan: {
     code: string;
@@ -46,6 +47,12 @@ type InvoiceRow = {
   unitId: string;
   amountPaise: number;
   taxPaise: number;
+  cgstPaise?: number;
+  sgstPaise?: number;
+  igstPaise?: number;
+  sac?: string | null;
+  supplierGstin?: string | null;
+  buyerGstin?: string | null;
   status: string;
   paidAt: string | null;
   createdAt: string;
@@ -66,6 +73,10 @@ function formatInr(paise: number) {
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(paise / 100);
+}
+
+function gstInclusive(paise: number) {
+  return paise + Math.round(paise * 0.18);
 }
 
 function formatBytes(bytes: string) {
@@ -155,11 +166,18 @@ export function BillingPageClient() {
   }
 
   async function cancelSub() {
-    if (!confirm("Cancel subscription at period end?")) return;
+    if (!confirm("Cancel subscription at period end? You keep access until then.")) return;
     const res = await fetch("/api/billing/cancel", { method: "POST" });
     const json = await res.json();
     if (json.ok) load();
     else setError(json.error?.message ?? "Cancel failed");
+  }
+
+  async function undoCancel() {
+    const res = await fetch("/api/billing/resume", { method: "POST" });
+    const json = await res.json();
+    if (json.ok) load();
+    else setError(json.error?.message ?? "Could not undo cancel");
   }
 
   if (loading) {
@@ -236,10 +254,20 @@ export function BillingPageClient() {
               )}
             </dl>
 
-            {sub.status === "active" && (
+            {sub.status === "active" && !sub.cancelAtPeriodEnd && (
               <Button variant="secondary" className="mt-4" onClick={cancelSub}>
                 Cancel at period end
               </Button>
+            )}
+            {sub.cancelAtPeriodEnd && (
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <p className="text-sm text-amber-800">
+                  Cancels at period end. You keep full access until then.
+                </p>
+                <Button variant="secondary" onClick={undoCancel}>
+                  Undo cancel
+                </Button>
+              </div>
             )}
           </div>
         )}
@@ -300,6 +328,23 @@ export function BillingPageClient() {
                   ? plan.yearlyPricePaise
                   : plan.monthlyPricePaise;
               const isCurrent = currentPlan?.code === plan.code;
+              const sameCycle = sub?.billingCycle === cycle;
+              const paidCurrent =
+                isCurrent &&
+                sameCycle &&
+                sub?.status === "active" &&
+                !sub.cancelAtPeriodEnd;
+              const needsPay =
+                !sub ||
+                ["trialing", "past_due", "suspended", "cancelled", "expired"].includes(
+                  sub.status
+                );
+              const canSubscribe = !paidCurrent;
+              const label = paidCurrent
+                ? "Current plan"
+                : isCurrent && needsPay
+                  ? "Subscribe this plan"
+                  : "Upgrade / Subscribe";
               return (
                 <div
                   key={plan.code}
@@ -313,8 +358,11 @@ export function BillingPageClient() {
                   <p className="mt-2 text-2xl font-bold tracking-tight">
                     {formatInr(price)}
                     <span className="text-sm font-normal text-zinc-500">
-                      /{cycle === "yearly" ? "year" : "month"}
+                      /{cycle === "yearly" ? "year" : "month"} excl. GST
                     </span>
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    {formatInr(gstInclusive(price))} incl. 18% GST at checkout
                   </p>
                   <ul className="mt-4 space-y-2 text-sm text-zinc-600">
                     <li className="flex items-center gap-2">
@@ -332,15 +380,13 @@ export function BillingPageClient() {
                   </ul>
                   <Button
                     className="mt-4 w-full bg-brand hover:brightness-95"
-                    disabled={isCurrent || checkoutPlan === plan.code}
+                    disabled={!canSubscribe || checkoutPlan === plan.code}
                     onClick={() => startCheckout(plan.code)}
                   >
                     {checkoutPlan === plan.code ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : isCurrent ? (
-                      "Current plan"
                     ) : (
-                      "Upgrade / Subscribe"
+                      label
                     )}
                   </Button>
                 </div>
@@ -359,8 +405,9 @@ export function BillingPageClient() {
                 <thead>
                   <tr className="border-b border-zinc-100 text-left text-zinc-500">
                     <th className="px-5 py-3 font-medium">Invoice</th>
-                    <th className="px-5 py-3 font-medium">Amount</th>
+                    <th className="px-5 py-3 font-medium">Taxable</th>
                     <th className="px-5 py-3 font-medium">GST</th>
+                    <th className="px-5 py-3 font-medium">SAC</th>
                     <th className="px-5 py-3 font-medium">Status</th>
                     <th className="px-5 py-3 font-medium">Date</th>
                   </tr>
@@ -368,9 +415,24 @@ export function BillingPageClient() {
                 <tbody>
                   {invoices.map((inv) => (
                     <tr key={inv.unitId} className="border-b border-zinc-50 even:bg-zinc-50/50">
-                      <td className="px-5 py-3 font-medium">{inv.unitId}</td>
+                      <td className="px-5 py-3 font-medium">
+                        <Link
+                          href={`/billing/invoices/${inv.unitId}`}
+                          className="text-brand underline"
+                        >
+                          {inv.unitId}
+                        </Link>
+                      </td>
                       <td className="px-5 py-3">{formatInr(inv.amountPaise)}</td>
-                      <td className="px-5 py-3">{formatInr(inv.taxPaise)}</td>
+                      <td className="px-5 py-3">
+                        {formatInr(inv.taxPaise)}
+                        {inv.igstPaise
+                          ? " IGST"
+                          : inv.cgstPaise || inv.sgstPaise
+                            ? " CGST/SGST"
+                            : ""}
+                      </td>
+                      <td className="px-5 py-3">{inv.sac ?? "998314"}</td>
                       <td className="px-5 py-3 capitalize">{inv.status}</td>
                       <td className="px-5 py-3 text-zinc-500">
                         {new Date(inv.paidAt ?? inv.createdAt).toLocaleDateString("en-IN")}

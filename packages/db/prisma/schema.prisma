@@ -123,6 +123,8 @@ model Office {
   timezone        String       @default("Asia/Kolkata")
   displayName     String?
   logoKey         String?
+  gstin           String?
+  billingAddress  String?
   moduleOverrides String[]     @default([])
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
@@ -141,7 +143,7 @@ model Plan {
   smsLimit               Int
   storageBytes           BigInt
   moduleEntitlements     String[]
-  trialDays              Int      @default(14)
+  trialDays              Int      @default(7)
   isActive               Boolean  @default(true)
   razorpayPlanIdMonthly  String?
   razorpayPlanIdYearly   String?
@@ -165,6 +167,7 @@ model Lead {
   city         String?
   message      String?
   planInterest String?
+  marketingConsent Boolean    @default(false)
   status       LeadStatus @default(new)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -185,6 +188,7 @@ model Subscription {
   currentPeriodStart     DateTime?
   currentPeriodEnd       DateTime?
   trialEndsAt            DateTime?
+  cancelAtPeriodEnd      Boolean            @default(false)
   razorpayCustomerId     String?
   razorpaySubscriptionId String?
   createdAt              DateTime           @default(now())
@@ -202,6 +206,13 @@ model Invoice {
   subscriptionId    String?       @db.ObjectId
   amountPaise       Int
   taxPaise          Int           @default(0)
+  cgstPaise         Int           @default(0)
+  sgstPaise         Int           @default(0)
+  igstPaise         Int           @default(0)
+  sac               String?
+  supplierGstin     String?
+  buyerGstin        String?
+  placeOfSupply     String?
   status            InvoiceStatus @default(draft)
   razorpayPaymentId String?
   pdfKey            String?
@@ -437,7 +448,7 @@ model Client {
   referredBy     String?
   matterBrief    String?
   notes          String?
-  smsConsent     Boolean  @default(true)
+  smsConsent     Boolean  @default(false)
   createdById    String?  @db.ObjectId
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

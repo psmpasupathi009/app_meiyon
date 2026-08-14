@@ -7,10 +7,17 @@ import {
   canViewDocument,
   contentDispositionAttachment,
 } from "@/features/documents/server/access";
+import { isClientOnlyUser } from "@/lib/auth/client-portal";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 
 export const GET = apiHandler(async (request, context) => {
   const { user, response } = await requireUser(request);
   if (!user) return response;
+
+  if (!isClientOnlyUser(user.roles)) {
+    const planFail = await requirePlanModule(user, "documents");
+    if (planFail) return planFail;
+  }
 
   const { unitId } = (await context.params) ?? {};
   const doc = unitId ? await prisma.document.findFirst({ where: { unitId, officeId: user.officeId } }) : null;
@@ -26,7 +33,7 @@ export const GET = apiHandler(async (request, context) => {
   return new NextResponse(new Uint8Array(file.buffer), {
     status: 200,
     headers: {
-      "Content-Type": doc.mimeType,
+      "Content-Type": file.mimeType || doc.mimeType,
       "Content-Disposition": contentDispositionAttachment(doc.originalName),
       "Content-Length": String(doc.size),
     },

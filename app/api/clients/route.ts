@@ -123,7 +123,7 @@ export const POST = apiHandler(async (request) => {
       referredBy: input.referredBy || undefined,
       matterBrief: input.matterBrief || undefined,
       notes: input.notes || undefined,
-      smsConsent: input.smsConsent ?? true,
+      smsConsent: input.smsConsent ?? false,
       createdById: user.id,
     },
   });

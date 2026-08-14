@@ -24,7 +24,7 @@ export const GET = apiHandler(async (request, context) => {
   return new NextResponse(new Uint8Array(file.buffer), {
     status: 200,
     headers: {
-      "Content-Type": "image/jpeg",
+      "Content-Type": file.mimeType || "image/jpeg",
       "Cache-Control": "private, max-age=3600",
     },
   });

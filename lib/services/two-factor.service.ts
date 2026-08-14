@@ -18,7 +18,7 @@ type TwoFactorResponse = {
   OTP?: string;
 };
 
-const DEFAULT_TEMPLATE = "mlf";
+const DEFAULT_TEMPLATE = "meiyon";
 
 function getApiKey(): string {
   const key = process.env.TWO_FACTOR_API_KEY?.trim();
@@ -103,18 +103,28 @@ export async function verifyOtpSms(
 }
 
 /**
- * Transactional (non-OTP) SMS via 2factor's open-template Addon Service.
- * Requires the sender ID to have "Open Template" (dynamic content) enabled
- * on the 2factor account — otherwise the account needs a DLT-approved
- * fixed template instead of arbitrary message text.
+ * Transactional hearing SMS via a DLT-registered 2Factor template.
+ * OPEN_TEMPLATE is not allowed. Set TWO_FACTOR_HEARING_TEMPLATE_NAME.
  */
+export function hearingSmsConfigured(): boolean {
+  const name = (process.env.TWO_FACTOR_HEARING_TEMPLATE_NAME || "").trim();
+  const senderId = (process.env.TWO_FACTOR_SENDER_ID || "").trim();
+  return Boolean(name && name !== "OPEN_TEMPLATE" && senderId);
+}
+
 export async function sendTransactionalSms(
   mobile91: string,
   message: string
 ): Promise<{ ok: boolean; details: string }> {
   const phone = toTwoFactorPhone(mobile91);
   const senderId = (process.env.TWO_FACTOR_SENDER_ID || "").trim();
+  const templateName = (process.env.TWO_FACTOR_HEARING_TEMPLATE_NAME || "").trim();
   if (!senderId) throw new Error("Missing TWO_FACTOR_SENDER_ID environment variable");
+  if (!templateName || templateName === "OPEN_TEMPLATE") {
+    throw new Error(
+      "Hearing SMS disabled: set TWO_FACTOR_HEARING_TEMPLATE_NAME to a DLT-registered template"
+    );
+  }
 
   const url = `https://2factor.in/API/V1/${getApiKey()}/ADDON_SERVICES/SEND/TSMS`;
   const res = await fetch(url, {
@@ -124,7 +134,8 @@ export async function sendTransactionalSms(
     body: new URLSearchParams({
       To: phone,
       From: senderId,
-      TemplateName: "OPEN_TEMPLATE",
+      TemplateName: templateName,
+      VAR1: message,
       Msg: message,
     }).toString(),
   });

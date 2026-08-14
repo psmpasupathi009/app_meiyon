@@ -5,6 +5,7 @@ import { prisma } from "@meiyon/db";
 import { writeAudit, pickAuditFields, diffAudit } from "@/lib/audit";
 import { toLeaveSummary } from "@/features/hrms/server/serialize";
 import { istDateKey } from "@/lib/utils/ist";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 
 /**
  * Cancel a leave request:
@@ -14,6 +15,8 @@ import { istDateKey } from "@/lib/utils/ist";
 export const POST = apiHandler(async (request, context) => {
   const { user, response } = await requireUser(request);
   if (!user) return response;
+  const planFail = await requirePlanModule(user, "hrms");
+  if (planFail) return planFail;
 
   const { unitId } = (await context.params) ?? {};
   const leave = unitId

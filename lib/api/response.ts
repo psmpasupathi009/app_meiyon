@@ -119,6 +119,19 @@ type RouteHandler = (
   context: HandlerContext
 ) => Promise<Response> | Response;
 
+async function publicIp(): Promise<string | null> {
+  try {
+    const res = await fetch("https://api.ipify.org", {
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!res.ok) return null;
+    const ip = (await res.text()).trim();
+    return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(ip) ? ip : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Thin wrapper: catch unexpected errors → unified SERVER_ERROR envelope.
  * Auth / perm / zod still live in each route (or helpers) for clarity.
@@ -130,9 +143,12 @@ export function apiHandler(handler: RouteHandler): RouteHandler {
     } catch (error) {
       console.error("apiHandler error", error);
       if (isDbUnreachableError(error)) {
+        const ip = await publicIp();
         return jsonFail(
           "DB_UNAVAILABLE",
-          "Database unreachable. Check DATABASE_URL and that MongoDB Atlas is reachable.",
+          ip
+            ? `Atlas blocked this IP (${ip}). MongoDB Atlas → Network Access → Add IP Address → ${ip} (or 0.0.0.0/0 for local). Wait 1 minute, retry.`
+            : "Atlas Network Access is blocking this machine. Add your current IP (or 0.0.0.0/0), wait 1 minute, retry.",
           503
         );
       }

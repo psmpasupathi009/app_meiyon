@@ -6,6 +6,7 @@ import { writeAudit } from "@/lib/audit";
 import { normalizeMobile } from "@/lib/auth/mobile";
 import { isStaffUser } from "@/lib/auth/client-portal";
 import { ensureDefaultPermissions } from "@/lib/rbac";
+import { trySendSetupOtp } from "@/lib/auth/setup-otp";
 
 type PortalStatus = {
   invited: boolean;
@@ -93,8 +94,10 @@ export const POST = apiHandler(async (request, context) => {
         entityUnitId: client.unitId,
         meta: { userUnitId: reactivated.unitId },
       });
+      const invite = await trySendSetupOtp(mobile);
       return jsonOk({
         portal: await portalStatusForClient(client.unitId, user.officeId),
+        invite,
         message:
           "Portal access restored. Client can log in with their mobile and PIN (or set PIN via OTP).",
       });
@@ -146,8 +149,12 @@ export const POST = apiHandler(async (request, context) => {
       entityUnitId: client.unitId,
       meta: { userUnitId: existingByMobile.unitId },
     });
+    const invite = existingByMobile.pinHash
+      ? { inviteSent: false, bypassed: false }
+      : await trySendSetupOtp(mobile);
     return jsonOk({
       portal: await portalStatusForClient(client.unitId, user.officeId),
+      invite,
       message: "Portal access linked. Client can log in with mobile + PIN/OTP.",
     });
   }
@@ -178,9 +185,12 @@ export const POST = apiHandler(async (request, context) => {
     meta: { userUnitId: created.unitId },
   });
 
+  const invite = await trySendSetupOtp(mobile);
+
   return jsonOk(
     {
       portal: await portalStatusForClient(client.unitId, user.officeId),
+      invite,
       message:
         "Portal invited. Client signs in with this mobile, verifies OTP, and sets a PIN.",
     },

@@ -1,0 +1,2 @@
+clientUnitId,caseUnitId,type,amount,status,paidOn,notes
+CLT-00001,CSE-00001,receipt,1000,paid,2026-08-01,Sample payment

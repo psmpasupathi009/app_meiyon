@@ -10,6 +10,7 @@ import { requireAdminToAssignAdmin } from "@/lib/rbac/employee-guards";
 import { toEmployeeSummary } from "@/features/employees/server/serialize";
 import type { Prisma } from "@prisma/client";
 import { containsInsensitive } from "@/lib/db/search";
+import { trySendSetupOtp } from "@/lib/auth/setup-otp";
 
 const EMPLOYEE_AUDIT_KEYS = [
   "name",
@@ -133,5 +134,7 @@ export const POST = apiHandler(async (request) => {
     },
   });
 
-  return jsonOk({ employee: toEmployeeSummary(created) }, 201);
+  const invite = await trySendSetupOtp(mobile);
+
+  return jsonOk({ employee: toEmployeeSummary(created), invite }, 201);
 });

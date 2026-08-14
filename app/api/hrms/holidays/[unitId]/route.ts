@@ -8,6 +8,7 @@ import {
   notifyUsers,
   scheduleNotify,
 } from "@/lib/notifications/notify";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 
 const HOLIDAY_AUDIT_KEYS = ["fromDate", "toDate", "title", "notes"] as const;
 
@@ -51,6 +52,9 @@ export const PATCH = apiHandler(async (request, context) => {
     "manage_attendance"
   );
   if (!user) return response;
+
+  const planFail = await requirePlanModule(user, "hrms");
+  if (planFail) return planFail;
 
   const { unitId } = (await context.params) ?? {};
   const item = unitId
@@ -141,6 +145,9 @@ export const DELETE = apiHandler(async (request, context) => {
     "manage_attendance"
   );
   if (!user) return response;
+
+  const planFail = await requirePlanModule(user, "hrms");
+  if (planFail) return planFail;
 
   const { unitId } = (await context.params) ?? {};
   const item = unitId

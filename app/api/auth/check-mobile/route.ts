@@ -1,11 +1,12 @@
 import { prisma } from "@meiyon/db";
-import { jsonFail, jsonOk } from "@/lib/api/response";
+import { apiHandler, jsonFail, jsonOk } from "@/lib/api/response";
 import { normalizeMobile } from "@/lib/auth/mobile";
+import { classifyBillingAccess } from "@/lib/billing/access";
 import { z } from "zod";
 
 const schema = z.object({ mobile: z.string().min(10).max(14) });
 
-export async function POST(request: Request) {
+export const POST = apiHandler(async (request) => {
   const body = await request.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -38,33 +39,35 @@ export async function POST(request: Request) {
         where: { officeId: u.officeId },
         select: { status: true },
       });
+      const isAdmin = u.roles.includes("admin") || u.roles.includes("sub_admin");
+      const gate = classifyBillingAccess({
+        officeStatus: office?.status,
+        subStatus: sub?.status,
+        roles: u.roles,
+      });
       return {
         officeUnitId: u.officeUnitId,
         officeName: office?.displayName ?? office?.name ?? "Office",
         officeStatus: office?.status,
         subscriptionStatus: sub?.status,
         hasPin: Boolean(u.pinHash),
+        gate,
+        isAdmin,
       };
     })
   );
 
-  const activeOffices = offices.filter(
-    (o) =>
-      o.officeStatus === "active" &&
-      o.subscriptionStatus !== "suspended" &&
-      o.subscriptionStatus !== "expired" &&
-      o.subscriptionStatus !== "cancelled"
-  );
+  const reachable = offices.filter((o) => o.gate !== "blocked");
 
-  if (activeOffices.length === 0) {
+  if (reachable.length === 0) {
     return jsonOk({
       status: "suspended" as const,
       message: "Your office access is suspended. Contact support.",
     });
   }
 
-  if (activeOffices.length === 1) {
-    const o = activeOffices[0];
+  if (reachable.length === 1) {
+    const o = reachable[0];
     if (o.hasPin) {
       return jsonOk({
         status: "pin" as const,
@@ -89,9 +92,9 @@ export async function POST(request: Request) {
 
   return jsonOk({
     status: "office_picker" as const,
-    offices: activeOffices.map(({ hasPin, ...o }) => ({
+    offices: reachable.map(({ hasPin, ...o }) => ({
       ...o,
       requiresPin: hasPin,
     })),
   });
-}
+});

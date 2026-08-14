@@ -16,6 +16,7 @@ import { apiDownload, apiFetch, getErrorMessage } from "@/lib/api/client";
 import type { PaymentSummary } from "@/features/accounts/server/serialize";
 import type { DocumentSummary } from "@/features/documents/server/serialize";
 import { UploadDocumentDialog } from "@/features/documents/components/upload-document-dialog";
+import { AuthFilePreview } from "@/features/documents/components/auth-file-preview";
 import { DatePicker } from "@/shared/components/forms/date-picker";
 import { UnitIdBadge } from "@/shared/components/data/unit-id-badge";
 import { Label } from "@/components/ui/label";
@@ -373,26 +374,33 @@ export function PaymentDetailDrawer({
                       {detail!.receipts.map((r) => (
                         <li
                           key={r.unitId}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-border/80 px-3 py-2 text-sm"
+                          className="space-y-2 rounded-lg border border-border/80 px-3 py-2 text-sm"
                         >
-                          <span className="min-w-0 truncate text-navy">
-                            {r.title}
-                          </span>
-                          <button
-                            type="button"
-                            className="shrink-0 text-xs font-medium text-navy underline-offset-2 hover:underline"
-                            onClick={async () => {
-                              const result = await apiDownload(
-                                `/api/documents/${r.unitId}/download`,
-                                r.originalName || r.title || "receipt"
-                              );
-                              if (!result.ok) {
-                                toast.error(result.error ?? "Download failed");
-                              }
-                            }}
-                          >
-                            Download
-                          </button>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="min-w-0 truncate text-navy">
+                              {r.title}
+                            </span>
+                            <button
+                              type="button"
+                              className="shrink-0 text-xs font-medium text-navy underline-offset-2 hover:underline"
+                              onClick={async () => {
+                                const result = await apiDownload(
+                                  `/api/documents/${r.unitId}/download`,
+                                  r.originalName || r.title || "receipt"
+                                );
+                                if (!result.ok) {
+                                  toast.error(result.error ?? "Download failed");
+                                }
+                              }}
+                            >
+                              Download
+                            </button>
+                          </div>
+                          <AuthFilePreview
+                            unitId={r.unitId}
+                            mimeType={r.mimeType}
+                            title={r.title}
+                          />
                         </li>
                       ))}
                     </ul>

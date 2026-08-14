@@ -17,6 +17,7 @@ export type LoginFormProps = {
   enableOfficePicker?: boolean;
   demoHint?: string;
   features?: string[];
+  disclaimer?: string;
 };
 
 function PinDots({ value, length }: { value: string; length: number }) {
@@ -81,6 +82,7 @@ export function LoginForm({
   enableOfficePicker,
   demoHint,
   features = DEFAULT_FEATURES,
+  disclaimer,
 }: LoginFormProps) {
   const initial = (brandInitial ?? brand.charAt(0) ?? "?").toUpperCase();
   const router = useRouter();
@@ -246,7 +248,7 @@ export function LoginForm({
   async function login(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const json = await api("/api/auth/login", {
+    const json = await api<{ paywall?: boolean }>("/api/auth/login", {
       mobile,
       pin,
       officeUnitId: officeUnitId || undefined,
@@ -256,7 +258,7 @@ export function LoginForm({
       setError(json.error?.message ?? "Login failed");
       return;
     }
-    router.push("/");
+    router.push(json.data?.paywall ? "/billing" : "/");
     router.refresh();
   }
 
@@ -536,6 +538,11 @@ export function LoginForm({
                 {loading ? "Saving…" : "Save PIN & sign in"}
               </button>
             </form>
+          )}
+          {disclaimer && (
+            <p className="mt-8 text-center text-xs leading-relaxed text-zinc-400">
+              {disclaimer}
+            </p>
           )}
         </div>
       </div>

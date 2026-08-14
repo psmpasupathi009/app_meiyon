@@ -1,6 +1,6 @@
 // Prefer specific connection failures — avoid bare "timeout" (e.g. OTP messages).
 const UNREACHABLE_RE =
-  /server selection|serverselection|no available servers|econnrefused|econnreset|enotfound|etimedout|(?:connection|socket|server|operation|network)\s+timed?\s*out|timed\s+out|connect(?:ion)? (?:refused|reset|failed|closed)|i\/o error|noprimary|no primary|replicasetnoprimary|replica set|mongodb.*(connect|network)|engine is not yet connected|prisma.?client.?initialization|can't reach database|could not connect|tlsv1 alert internal error|fatal alert:\s*internalerror|internalerror/i;
+  /server selection|serverselection|no available servers|econnrefused|econnreset|enotfound|etimedout|(?:connection|socket|server|operation|network)\s+timed?\s*out|timed\s+out|connect(?:ion)? (?:refused|reset|failed|closed)|i\/o error|noprimary|no primary|replicasetnoprimary|replica set|mongodb.*(connect|network)|engine is not yet connected|prisma.?client.?initialization|can't reach database|could not connect|tlsv1 alert internal error|fatal alert:\s*internalerror|internalerror|transactions are not supported/i;
 
 function errorText(error: unknown): string {
   if (error == null) return "";

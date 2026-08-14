@@ -1,5 +1,4 @@
 import { brand } from "@/config/company/brand";
-import { office } from "@/config/company/office";
 
 export type LegalSection = {
   heading: string;
@@ -14,79 +13,39 @@ export type LegalPage = {
   sections: LegalSection[];
 };
 
+const MARKETING =
+  process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3000";
+
 /**
- * Firm policies for the portal. Drafted for Indian advocate-office practice
- * (BCI professional conduct, client intake / KYC last-4, consultation vs
- * engagement). Not a substitute for a signed engagement letter or vakalatnama.
+ * Platform SaaS policies for every tenant. Chamber-specific engagement /
+ * vakalatnama rules are not published here (optional later per office).
  */
 export const legalPages: LegalPage[] = [
   {
     slug: "terms",
     title: "Terms of use",
-    updatedAt: "2026-07-23",
-    intro: `These terms govern use of the ${brand.name} (${office.shortName}) advocate office portal by authorised staff and, where applicable, information shown to clients. Court representation begins only after engagement and vakalatnama as required.`,
+    updatedAt: "2026-08-14",
+    intro: `These terms govern use of the ${brand.name} office portal, practice-management software operated by PSM Softwares. Full platform terms are published at ${MARKETING}/legal/terms.`,
     sections: [
       {
-        heading: "1. Nature of this portal",
+        heading: "1. Software, not a law firm",
         paragraphs: [
-          "This website/portal is an internal office system for case register, client records, hearings, documents, cash receipts, and appointments. It is not an open public marketplace for legal advice.",
-          "Information entered by staff must be accurate. Unit IDs (CLI / CSE / PAY / etc.) are office reference numbers and are separate from court case numbers and CNR.",
+          "MEIYON is practice-management software. PSM Softwares is not a law firm, does not provide legal advice, and does not solicit legal work (BCI Rule 36).",
+          "Your office remains responsible for client engagement, vakalatnama, and professional conduct.",
         ],
       },
       {
-        heading: "2. No guarantee of outcome",
+        heading: "2. Access and billing",
         paragraphs: [
-          `Legal proceedings depend on facts, evidence, law, and the court. ${brand.name} and its advocates do not guarantee any particular result, order, or timeline.`,
-          "Fee arrangements, if any, follow a separate written understanding. Contingent “success fee” sharing of the claim amount is not practised contrary to professional rules.",
+          "Access is provisioned by Super Admin. Trials are 7 days with no auto-charge, then 7 days past-due grace, then a billing pay-wall until you subscribe.",
+          "Office admins manage payment on Billing. Cancellation takes effect at period end.",
         ],
       },
       {
-        heading: "3. Client engagement",
+        heading: "3. Acceptable use",
         paragraphs: [
-          "A consultation does not by itself create a court retainer. Full engagement for a matter typically requires: conflict check, agreed scope, fee clarity, and (for court) vakalatnama / authorisation.",
-          "The client must disclose known opposite parties and related persons so the office can avoid conflicts of interest.",
-        ],
-      },
-      {
-        heading: "4. Fees, advances and receipts",
-        paragraphs: [
-          "Advances and stage payments are recorded in the office cash register (PAY-#####). Court fees, stamps, copying, travel, and clerkage (where applicable) are usually extra and payable by the client against actuals.",
-          "Only authorised staff may issue or upload payment receipts. Disputes on amounts should be raised promptly with the office.",
-        ],
-      },
-      {
-        heading: "5. Documents and confidentiality",
-        paragraphs: [
-          "Pleadings, judgments, ID proofs, and notes stored here are confidential office records. Staff must not share them outside authorised channels.",
-          "Full Aadhaar / PAN numbers should not be stored in the system — last-4 digits only where needed for identification.",
-        ],
-      },
-      {
-        heading: "6. Acceptable use (staff)",
-        paragraphs: [
-          "Login credentials are personal. Do not share PIN/OTP. Report lost devices immediately to admin.",
-          "Misuse of client data, unauthorised deletion, or bypassing permissions may lead to account deactivation and other action.",
-        ],
-      },
-      {
-        heading: "7. Limitation",
-        paragraphs: [
-          `To the extent permitted by law, ${brand.name} is not liable for indirect loss arising from portal downtime, SMS delay, or third-party court/eCourts systems.`,
-          "These terms may be updated; the “Updated” date on this page is controlling for the portal copy.",
-        ],
-      },
-      {
-        heading: "8. Court lists and third-party data",
-        paragraphs: [
-          "Court / district pickers use an office-maintained all-India seed (and free-text “Other” entries). Client address uses a separate locations seed. This portal does not scrape or republish the Government of India eCourts portals (services.ecourts.gov.in / ecourts.gov.in) and does not call third-party court-data APIs for the case register.",
-          "Court names entered here are for internal case-register convenience only. Staff must verify CNR, cause list, and filings against official court / eCourts records before relying on them.",
-        ],
-      },
-      {
-        heading: "9. Contact",
-        paragraphs: [
-          `Office: ${office.addressLines.join(", ")}.`,
-          `Phone: ${office.contactPhone}. Email: ${office.contactEmail}.`,
+          "Do not share PIN/OTP. Do not use the portal to solicit legal work or publish advocate advertisements.",
+          "Misuse of client data may lead to account deactivation.",
         ],
       },
     ],
@@ -94,94 +53,53 @@ export const legalPages: LegalPage[] = [
   {
     slug: "consultation-policy",
     title: "Consultation policy",
-    updatedAt: "2026-07-23",
-    intro: `How ${brand.name} handles first meetings, appointments, and what a consultation includes before a case is registered.`,
+    updatedAt: "2026-08-14",
+    intro:
+      "This page covers SaaS onboarding with MEIYON, not a vakalatnama or advocate consultation. Legal meetings are solely between the client and the law office that uses this software.",
     sections: [
       {
-        heading: "1. Booking",
+        heading: "1. Platform onboarding",
         paragraphs: [
-          "Consultations are booked through the office appointments diary (office / phone / video). Walk-ins are subject to advocate availability.",
-          "Please bring any notice, FIR copy, petition, order, contract, or ID you already have. Incomplete papers may limit advice.",
+          "A marketing-site trial request is a request for software access. It does not create an attorney-client relationship with PSM Softwares.",
+          "Appointments booked in this portal are with the tenant office, not with MEIYON.",
         ],
       },
       {
-        heading: "2. What a consultation covers",
+        heading: "2. Office responsibility",
         paragraphs: [
-          "A consultation is a preliminary discussion of facts and options. It may include: whether court action is suitable, likely forums (district / high court / tribunal), rough stages, and documents still needed.",
-          "It does not include drafting or filing until separately agreed. Urgent interim relief needs express confirmation from the assigned advocate.",
-        ],
-      },
-      {
-        heading: "3. Consultation fee",
-        paragraphs: [
-          "A consultation fee may apply (fixed or time-based) as told at booking. Fee paid for consultation is generally non-refundable once the meeting has started, unless the office cancels.",
-          "If the matter is taken up, consultation fee may be adjusted against the brief/advance only if the advocate confirms that in writing or on the cash receipt.",
-        ],
-      },
-      {
-        heading: "4. After consultation — case register",
-        paragraphs: [
-          "If you engage the office, staff will open a Client (CLI) and Case register entry (CSE) with: State → District → Court, case type, parties, advocate on record, and optional CNR / court number when available.",
-          "Hearing dates and SMS reminders use the primary mobile recorded at intake — keep it updated.",
-        ],
-      },
-      {
-        heading: "5. Cancellation / no-show",
-        paragraphs: [
-          "Please cancel at least a few hours before the slot so another client can use it. Repeated no-shows may require advance payment for the next booking.",
-        ],
-      },
-      {
-        heading: "6. Conflict and refusal",
-        paragraphs: [
-          "The office may decline or withdraw if there is a conflict of interest, incomplete disclosure, abusive conduct, or instructions contrary to law or professional ethics.",
+          "Each office sets its own consultation fees, conflict checks, and engagement letters.",
         ],
       },
     ],
   },
   {
     slug: "privacy",
-    title: "Privacy & data practice",
-    updatedAt: "2026-07-23",
-    intro: `How ${brand.name} handles personal data of clients and staff in this portal.`,
+    title: "Privacy",
+    updatedAt: "2026-08-14",
+    intro: `How ${brand.name} (PSM Softwares) processes personal data in this portal. Platform DPDP notice: ${MARKETING}/legal/privacy. Data Processing Agreement: ${MARKETING}/legal/dpa.`,
     sections: [
       {
-        heading: "1. What we collect",
+        heading: "1. Roles",
         paragraphs: [
-          "Client intake may include name, parent/spouse name, mobile, alternate mobile, email, address, city, district, state, occupation, matter brief, and notes needed for the case.",
-          "Case files may include court location, case type, opposing party, CNR, hearings, uploaded PDFs/images (judgments, orders, pleadings), and payment records.",
+          "The law office is the Data Fiduciary for client and staff files. PSM Softwares is the Data Processor for that data, and a Data Fiduciary for platform accounts and marketing leads.",
         ],
       },
       {
-        heading: "2. Why we collect it",
+        heading: "2. Storage",
         paragraphs: [
-          "To maintain the office case register, contact you for hearings, issue receipts, assign advocates, and meet professional record-keeping needs.",
-          "SMS to the registered mobile may be used for hearing reminders when enabled.",
+          "Data is stored in MongoDB Atlas. Files are hosted on Cloudinary; the database stores only the file URL and metadata. Payments via Razorpay. OTP and hearing SMS via 2Factor when configured.",
         ],
       },
       {
-        heading: "3. Storage and access",
+        heading: "3. SMS",
         paragraphs: [
-          "Data is stored in the office database and file storage with role-based access (admin, advocate, staff, accountant as configured).",
-          "Do not upload full Aadhaar card images unless the advocate specifically requires a copy for filing — prefer redacted copies.",
+          "Hearing reminders are sent only with client SMS consent (off by default) and a DLT-registered template. OTP uses a separate registered template.",
         ],
       },
       {
-        heading: "4. Sharing",
+        heading: "4. Rights and grievance",
         paragraphs: [
-          "We do not sell client data. Sharing is limited to: courts/authorities when filing, co-counsel with client knowledge, SMS/email providers for operational messages, and legal compulsion.",
-        ],
-      },
-      {
-        heading: "5. Retention",
-        paragraphs: [
-          "Case records are retained as long as needed for the matter and office archive practice. Staff accounts follow HR deactivation rules.",
-        ],
-      },
-      {
-        heading: "6. Your requests",
-        paragraphs: [
-          `To correct contact details or ask about your file, contact the office at ${office.contactPhone} / ${office.contactEmail} with your CLI or CSE id.`,
+          `For access, correction, erasure, or complaints, email hello@meiyon.com or see ${MARKETING}/legal/grievance.`,
         ],
       },
     ],

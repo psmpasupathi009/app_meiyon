@@ -123,7 +123,7 @@ async function seedPlans() {
       smsLimit: plan.smsLimit,
       storageBytes: plan.storageBytes,
       moduleEntitlements: [...plan.moduleEntitlements] as string[],
-      trialDays: 14,
+      trialDays: 7,
     };
 
     if (existing) {

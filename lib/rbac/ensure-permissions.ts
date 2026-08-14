@@ -46,6 +46,18 @@ export async function ensureDefaultPermissions(
       const missingRole = expectedRoles.some((r) => !rolesPresent.has(r));
       const empty = adminRows.length === 0;
 
+      // Admin provisioner used to seed client.cases.upload as false.
+      await prisma.rolePermission.updateMany({
+        where: {
+          officeId,
+          role: "client",
+          module: "cases",
+          action: "upload",
+          allowed: false,
+        },
+        data: { allowed: true },
+      });
+
       if (!empty && !missingCatalog && !missingRole) {
         seededOffices.add(officeId);
         return false;

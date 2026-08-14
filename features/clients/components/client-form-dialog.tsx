@@ -90,7 +90,7 @@ export function ClientFormDialog({
   const [referredBy, setReferredBy] = useState("");
   const [matterBrief, setMatterBrief] = useState("");
   const [notes, setNotes] = useState("");
-  const [smsConsent, setSmsConsent] = useState(true);
+  const [smsConsent, setSmsConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -130,7 +130,7 @@ export function ClientFormDialog({
       setReferredBy(client?.referredBy ?? "");
       setMatterBrief(client?.matterBrief ?? "");
       setNotes(client?.notes ?? "");
-      setSmsConsent(client?.smsConsent ?? true);
+      setSmsConsent(client?.smsConsent ?? false);
       setError("");
     });
   }, [open, client]);

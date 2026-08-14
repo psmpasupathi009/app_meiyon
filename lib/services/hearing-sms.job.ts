@@ -2,7 +2,7 @@ import type { Hearing } from "@prisma/client";
 import { prisma } from "@meiyon/db";
 import { writeAudit } from "@/lib/audit";
 import { normalizeMobile } from "@/lib/auth/mobile";
-import { sendTransactionalSms } from "@/lib/services/two-factor.service";
+import { sendTransactionalSms, hearingSmsConfigured } from "@/lib/services/two-factor.service";
 import { smsTemplates } from "@/config/company/sms-templates";
 import {
   istDateKey,
@@ -107,6 +107,21 @@ async function processHearingSmsBatch(
     return { total: 0, sent: 0, failed: 0, skipped: 0, details: [] };
   }
 
+  if (!hearingSmsConfigured()) {
+    return {
+      total: dueHearings.length,
+      sent: 0,
+      failed: 0,
+      skipped: dueHearings.length,
+      details: dueHearings.map((h) => ({
+        hearingUnitId: h.unitId,
+        caseUnitId: h.caseUnitId,
+        ok: true,
+        message: "Skipped — hearing SMS DLT template not configured",
+      })),
+    };
+  }
+
   const caseIds = Array.from(new Set(dueHearings.map((h) => h.caseId)));
   const cases = await prisma.case.findMany({
     where: { id: { in: caseIds } },
@@ -134,6 +149,11 @@ async function processHearingSmsBatch(
   const clientById = new Map(clients.map((c) => [c.id, c]));
 
   const officeIds = Array.from(new Set(dueHearings.map((h) => h.officeId)));
+  const officeRows = await prisma.office.findMany({
+    where: { id: { in: officeIds } },
+    select: { id: true, displayName: true, name: true },
+  });
+  const officeById = new Map(officeRows.map((o) => [o.id, o]));
   const officeEntitlements = new Map<
     string,
     Awaited<ReturnType<typeof officeSmsEntitlement>>
@@ -228,7 +248,7 @@ async function processHearingSmsBatch(
           };
         }
 
-        if (client.smsConsent === false) {
+        if (!client.smsConsent) {
           await prisma.hearing.update({
             where: { id: hearing.id },
             data: { smsSentAt: new Date() },
@@ -246,12 +266,14 @@ async function processHearingSmsBatch(
           };
         }
 
+        const officeRow = officeById.get(hearing.officeId);
         const mobile = normalizeMobile(client.mobile) ?? client.mobile;
         const message = smsTemplates.hearingReminder({
           clientName: client.name,
           caseLabel: caseItem.caseNumber ?? caseItem.unitId,
           hearingDateIst: istDisplayDate(hearing.hearingDate),
           courtName: caseItem.courtName ?? "the court",
+          officeName: officeRow?.displayName ?? officeRow?.name ?? "Office",
         });
 
         // Claim before send so cron + manual cannot double-SMS.

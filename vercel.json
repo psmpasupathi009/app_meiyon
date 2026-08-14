@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/hearing-sms",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/trial-expiry",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/past-due-suspend",
+      "schedule": "15 2 * * *"
+    }
+  ]
+}

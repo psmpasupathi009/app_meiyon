@@ -1,6 +1,6 @@
 import { prisma } from "@meiyon/db";
 import { setupPinSchema, hashPin, isWeakPin } from "@meiyon/auth";
-import { jsonFail, jsonOk } from "@/lib/api/response";
+import { jsonFail, jsonOk, apiHandler } from "@/lib/api/response";
 import { ACCESS_COOKIE } from "@/lib/auth/cookie-names";
 import { consumeOtpProof } from "@/lib/auth/otp-proof";
 import { issueSession, sessionCookieOptions } from "@/lib/auth/session";
@@ -12,7 +12,7 @@ async function resolveUser(mobile: string, officeUnitId?: string) {
   return users[0] ?? null;
 }
 
-export async function POST(request: Request) {
+export const POST = apiHandler(async (request) => {
   const body = await request.json();
   const parsed = setupPinSchema.safeParse(body);
   if (!parsed.success) {
@@ -54,4 +54,4 @@ export async function POST(request: Request) {
   const response = jsonOk({ user: tokens.user, message: "PIN set successfully" });
   response.cookies.set(ACCESS_COOKIE, tokens.accessToken, sessionCookieOptions());
   return response;
-}
+});

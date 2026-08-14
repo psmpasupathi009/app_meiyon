@@ -3,6 +3,12 @@ import { mkdir, writeFile, readFile, unlink } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 import { detectAllowedMime } from "@/lib/storage/detect-mime";
+import {
+  cloudinaryConfigured,
+  cloudinaryDestroy,
+  cloudinaryFetch,
+  cloudinaryUpload,
+} from "@/lib/storage/cloudinary";
 
 export type StoredFile = {
   key: string;
@@ -39,7 +45,7 @@ function assertSize(size: number): void {
   }
 }
 
-function safeFolder(folder: string): string {
+export function safeFolder(folder: string): string {
   return (
     folder
       .replace(/[^a-zA-Z0-9_\-./]/g, "_")
@@ -48,16 +54,19 @@ function safeFolder(folder: string): string {
   );
 }
 
+function sniffAndValidate(buffer: Buffer): string {
+  assertSize(buffer.byteLength);
+  const sniffed = detectAllowedMime(buffer);
+  if (!sniffed) {
+    throw new Error("File type not allowed (only PDF, JPEG, PNG, WebP)");
+  }
+  assertAllowedMime(sniffed);
+  return sniffed;
+}
+
 const localDriver: StorageDriver = {
   async put({ buffer, originalName, folder = "misc" }) {
-    assertSize(buffer.byteLength);
-
-    const sniffed = detectAllowedMime(buffer);
-    if (!sniffed) {
-      throw new Error("File type not allowed (only PDF, JPEG, PNG, WebP)");
-    }
-    assertAllowedMime(sniffed);
-
+    const sniffed = sniffAndValidate(buffer);
     const safeName = originalName.replace(/[^\w.\-]+/g, "_").slice(0, 80);
     const key = `${safeFolder(folder)}/${randomUUID()}-${safeName}`;
     const fullPath = path.join(UPLOAD_ROOT, key);
@@ -97,5 +106,48 @@ const localDriver: StorageDriver = {
   },
 };
 
-/** Features call this interface — never `fs` directly. Swap driver in Scale. */
-export const storage: StorageDriver = localDriver;
+const cloudinaryDriver: StorageDriver = {
+  async put({ buffer, originalName, folder = "misc" }) {
+    const sniffed = sniffAndValidate(buffer);
+    const { url } = await cloudinaryUpload({
+      buffer,
+      folder: safeFolder(folder),
+      originalName,
+    });
+    return {
+      key: url,
+      mimeType: sniffed,
+      size: buffer.byteLength,
+      originalName,
+    };
+  },
+
+  async get(key) {
+    const buffer = await cloudinaryFetch(key);
+    if (!buffer) return null;
+    return { buffer, mimeType: detectAllowedMime(buffer) ?? undefined };
+  },
+
+  async delete(key) {
+    await cloudinaryDestroy(key);
+  },
+};
+
+/**
+ * Cloudinary when CLOUDINARY_* is set (URL stored in MongoDB).
+ * Local disk otherwise. HTTPS keys always resolve via Cloudinary fetch.
+ */
+export const storage: StorageDriver = {
+  async put(input) {
+    if (cloudinaryConfigured()) return cloudinaryDriver.put(input);
+    return localDriver.put(input);
+  },
+  async get(key) {
+    if (key.startsWith("https://")) return cloudinaryDriver.get(key);
+    return localDriver.get(key);
+  },
+  async delete(key) {
+    if (key.startsWith("https://")) return cloudinaryDriver.delete(key);
+    return localDriver.delete(key);
+  },
+};

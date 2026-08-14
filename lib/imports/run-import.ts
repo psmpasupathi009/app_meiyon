@@ -8,6 +8,7 @@ import { compliance } from "@/config/company/compliance";
 import { assertImportRateLimit } from "@/lib/rate-limit/guards";
 import { findIgnoredImportColumns } from "@/lib/imports/columns";
 import { isClientOnlyUser } from "@/lib/auth/client-portal";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 
 export type ImportRowResult = {
   row: number;
@@ -65,6 +66,9 @@ export function createImportHandler<TRow extends Record<string, string>>(
     if (isClientOnlyUser(user.roles)) {
       return jsonFail("FORBIDDEN", "You don’t have access. Ask admin.", 403);
     }
+
+    const planFail = await requirePlanModule(user, "csv_imports");
+    if (planFail) return planFail;
 
     const limited = await assertImportRateLimit(request, user.unitId);
     if (limited) return limited;

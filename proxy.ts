@@ -55,6 +55,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-meiyon-pathname", pathname);
+
   if (
     access.ok &&
     access.roles.length > 0 &&
@@ -65,9 +68,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico|images|api).*)"],
+  matcher: ["/((?!_next|favicon.ico|images|samples|api).*)"],
 };

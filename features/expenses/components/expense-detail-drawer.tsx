@@ -18,6 +18,7 @@ import type { DocumentSummary } from "@/features/documents/server/serialize";
 import { UnitIdBadge } from "@/shared/components/data/unit-id-badge";
 import { istDisplayDate } from "@/lib/utils/ist";
 import { rupee } from "@/features/expenses/components/expenses-page-helpers";
+import { AuthFilePreview } from "@/features/documents/components/auth-file-preview";
 
 type ActivityItem = {
   action: string;
@@ -184,26 +185,33 @@ export function ExpenseDetailDrawer({
                 Bill
               </p>
               {bill ? (
-                <div className="flex items-center gap-3 rounded-lg border border-border/80 bg-card p-3">
-                  <Paperclip className="size-4 shrink-0 text-navy" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {bill.originalName}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {bill.unitId} · {bill.mimeType}
-                    </p>
+                <div className="space-y-2 rounded-lg border border-border/80 bg-card p-3">
+                  <div className="flex items-center gap-3">
+                    <Paperclip className="size-4 shrink-0 text-navy" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {bill.originalName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {bill.unitId} · {bill.mimeType}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => void downloadBill()}
+                    >
+                      <Download className="size-3.5" />
+                      Download
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1"
-                    onClick={() => void downloadBill()}
-                  >
-                    <Download className="size-3.5" />
-                    Download
-                  </Button>
+                  <AuthFilePreview
+                    unitId={bill.unitId}
+                    mimeType={bill.mimeType}
+                    title={bill.originalName || bill.title}
+                  />
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No bill attached</p>

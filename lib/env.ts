@@ -7,12 +7,17 @@ const PLACEHOLDER_SECRETS = new Set([
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
-  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
+  JWT_SECRET_OP: z.string().optional(),
+  JWT_SECRET: z.string().optional(),
   CRON_SECRET: z.string().optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).optional(),
 });
 
 let validated = false;
+
+function jwtSecret(): string {
+  return process.env.JWT_SECRET_OP ?? process.env.JWT_SECRET ?? "";
+}
 
 /** Fail fast on boot when required secrets are missing or weak (production). */
 export function assertEnv(): void {
@@ -24,11 +29,17 @@ export function assertEnv(): void {
     throw new Error(`Invalid environment: ${msg}`);
   }
 
+  const jwt = jwtSecret();
+  if (jwt.length < 32) {
+    throw new Error(
+      "Invalid environment: JWT_SECRET_OP must be at least 32 characters"
+    );
+  }
+
   if (process.env.NODE_ENV === "production") {
-    const jwt = process.env.JWT_SECRET ?? "";
     if (PLACEHOLDER_SECRETS.has(jwt)) {
       throw new Error(
-        "Invalid environment: JWT_SECRET must not use the example placeholder in production"
+        "Invalid environment: JWT_SECRET_OP must not use the example placeholder in production"
       );
     }
     const cron = process.env.CRON_SECRET?.trim() ?? "";

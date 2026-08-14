@@ -6,10 +6,14 @@ import { decideLeaveSchema } from "@/lib/validations/hrms.schema";
 import { toLeaveSummary } from "@/features/hrms/server/serialize";
 import { istDateKey } from "@/lib/utils/ist";
 import { notifyUser, scheduleNotify } from "@/lib/notifications/notify";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 
 export const POST = apiHandler(async (request, context) => {
   const { user, response } = await requirePerm(request, "hrms", "approve_leave");
   if (!user) return response;
+
+  const planFail = await requirePlanModule(user, "hrms");
+  if (planFail) return planFail;
 
   const { unitId } = (await context.params) ?? {};
   const leave = unitId

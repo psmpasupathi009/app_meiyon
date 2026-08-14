@@ -4,6 +4,7 @@ export const smsTemplates = {
     caseLabel: string;
     hearingDateIst: string;
     courtName: string;
+    officeName: string;
   }) =>
-    `Dear ${input.clientName}, hearing for ${input.caseLabel} is on ${input.hearingDateIst} at ${input.courtName}. — Manitham Law Foundation`,
+    `Dear ${input.clientName}, hearing for ${input.caseLabel} is on ${input.hearingDateIst} at ${input.courtName}. — ${input.officeName}`,
 } as const;

@@ -1,6 +1,7 @@
 import { prisma } from "@meiyon/db";
 import { normalizeMobile } from "@/lib/auth/mobile";
 import {
+  canActAsHearingAdvocate,
   clashMessage,
   findCrossCourtClash,
   mobileLookupVariants,
@@ -182,7 +183,7 @@ export async function batchAdvocateCourtAvailability(input: {
         reason: "inactive",
         message: clashMessage({ ok: false, reason: "inactive" }),
       };
-    } else if (adv.roles && !adv.roles.includes("advocate")) {
+    } else if (adv.roles && !canActAsHearingAdvocate(adv.roles)) {
       blocked = {
         reason: "not_advocate",
         message: clashMessage({ ok: false, reason: "not_advocate" }),

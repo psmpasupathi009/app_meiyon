@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@meiyon/ui";
@@ -16,7 +17,7 @@ import { prisma } from "@meiyon/db";
 import { DbUnavailable } from "@/features/auth/components/db-unavailable";
 import { isDbUnreachableError } from "@/lib/db/unreachable";
 import type { PublicUser } from "@/lib/auth/session";
-import { getOfficeSubscription } from "@/lib/billing/access";
+import { getOfficeSubscription, classifyBillingAccess } from "@/lib/billing/access";
 
 function visibleNav(user: PublicUser, planCode: string | null): NavItem[] {
   const perms = new Set(user.permissions);
@@ -76,9 +77,23 @@ export default async function PortalLayout({
 
   const office = await prisma.office.findUnique({
     where: { unitId: user.officeUnitId },
-    select: { id: true, displayName: true, name: true },
+    select: { id: true, displayName: true, name: true, status: true },
   });
   const subCtx = office ? await getOfficeSubscription(office.id) : null;
+  const gate = classifyBillingAccess({
+    officeStatus: office?.status,
+    subStatus: subCtx?.subscription.status,
+    roles: user.roles,
+  });
+
+  const headerList = await headers();
+  const pathname =
+    headerList.get("x-meiyon-pathname") ?? headerList.get("next-url") ?? "";
+  const onBilling =
+    pathname === "/billing" || pathname.startsWith("/billing/");
+
+  if (gate === "blocked") redirect("/login");
+  if (gate === "paywall" && pathname && !onBilling) redirect("/billing");
 
   const planCode = subCtx?.plan?.code ?? null;
   const nav = visibleNav(user, planCode);
@@ -88,13 +103,23 @@ export default async function PortalLayout({
     items: nav.filter((n) => n.group === group),
   })).filter((g) => g.items.length > 0);
 
-  const navGroups = grouped.map((g) => ({
-    id: g.group,
-    label: g.label,
-    items: g.items.map((i) => ({ href: i.href, label: i.label })),
-  }));
+  const navGroups =
+    gate === "paywall"
+      ? [
+          {
+            id: "account",
+            label: "Billing",
+            items: [{ href: "/billing", label: "Billing" }],
+          },
+        ]
+      : grouped.map((g) => ({
+          id: g.group,
+          label: g.label,
+          items: g.items.map((i) => ({ href: i.href, label: i.label })),
+        }));
 
-  const pastDue = subCtx?.subscription.status === "past_due";
+  const pastDue = gate === "past_due";
+  const paywalled = gate === "paywall";
 
   return (
     <AppShell
@@ -105,11 +130,15 @@ export default async function PortalLayout({
       userName={user.name ?? "Staff"}
       userMeta={user.roles.join(", ")}
       banner={
-        pastDue ? (
+        paywalled ? (
+          <div className="border-b border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900 lg:px-6">
+            Subscription paused. Pay below to restore access to clients, cases, and diary.
+          </div>
+        ) : pastDue ? (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 lg:px-6">
-            Payment past due — some features may be restricted.{" "}
+            Trial or payment is past due. You still have access for a 7-day grace period.{" "}
             <Link href="/billing" className="font-semibold underline">
-              Update billing
+              Subscribe now
             </Link>
           </div>
         ) : undefined

@@ -16,6 +16,7 @@ import {
   isClientUploadDocType,
 } from "@/lib/auth/client-portal";
 import { requireClientUnitId } from "@/lib/auth/client-scope";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 
 export const GET = apiHandler(async (request) => {
   const { searchParams } = new URL(request.url);
@@ -26,6 +27,11 @@ export const GET = apiHandler(async (request) => {
 
   const { user, response } = await requireUser(request);
   if (!user) return response;
+
+  if (!isClientOnlyUser(user.roles)) {
+    const planFail = await requirePlanModule(user, "documents");
+    if (planFail) return planFail;
+  }
 
   if (isClientOnlyUser(user.roles)) {
     const cid = requireClientUnitId(user);
@@ -136,6 +142,11 @@ export const GET = apiHandler(async (request) => {
 export const POST = apiHandler(async (request) => {
   const { user, response } = await requireUser(request);
   if (!user) return response;
+
+  if (!isClientOnlyUser(user.roles)) {
+    const planFail = await requirePlanModule(user, "documents");
+    if (planFail) return planFail;
+  }
 
   const limited = await rateLimit(
     clientRateKey(request, "upload", user.unitId),

@@ -5,6 +5,8 @@ import { clientUnitIdOf, isClientOnlyUser } from "@/lib/auth/client-portal";
 import { hasPermission, requireModuleEnabled } from "@/lib/rbac";
 import { jsonFail } from "@/lib/api/response";
 import { modules, type AppModule } from "@meiyon/config";
+import { gateForUser, isBillingApiPath } from "@/lib/billing/access";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 
 export type GuardResult =
   | { user: User; response: null }
@@ -21,6 +23,26 @@ export async function requireUser(request: Request): Promise<GuardResult> {
   const user = await getCurrentUser(request);
   if (!user) {
     return { user: null, response: jsonFail("UNAUTHORIZED", "Unauthorized", 401) };
+  }
+  const gate = await gateForUser(user);
+  if (gate === "blocked") {
+    return {
+      user: null,
+      response: jsonFail("SUBSCRIPTION_INACTIVE", "Office access is not active", 403),
+    };
+  }
+  if (gate === "paywall") {
+    const path = new URL(request.url).pathname;
+    if (!isBillingApiPath(path)) {
+      return {
+        user: null,
+        response: jsonFail(
+          "PAYWALL",
+          "Subscription suspended. Pay on Billing to continue.",
+          402
+        ),
+      };
+    }
   }
   return { user, response: null };
 }
@@ -47,6 +69,13 @@ export async function requirePerm(
       response: jsonFail("FORBIDDEN", "You don’t have access. Ask admin.", 403),
     };
   }
+
+  const PLAN_GATED = new Set(["hrms", "accounts", "expenses", "dak", "reports"]);
+  if (PLAN_GATED.has(module)) {
+    const planFail = await requirePlanModule(user, module);
+    if (planFail) return { user: null, response: planFail };
+  }
+
   return { user, response: null };
 }
 

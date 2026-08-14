@@ -32,7 +32,7 @@ export default async function LegalPage({
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <p className="text-sm font-medium text-brand">Office policies</p>
+      <p className="text-sm font-medium text-brand">MEIYON platform</p>
       <h1 className="mt-2 text-3xl font-bold tracking-tight text-zinc-900">
         {page.title}
       </h1>

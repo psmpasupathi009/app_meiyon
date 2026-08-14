@@ -22,6 +22,7 @@ import {
 } from "@/lib/validations/documents.schema";
 import { apiDownload, apiFetch } from "@/lib/api/client";
 import { cn } from "@/lib/utils/cn";
+import { AuthFilePreview } from "@/features/documents/components/auth-file-preview";
 
 const TYPE_ICON: Record<
   DocumentTypeValue,
@@ -235,6 +236,13 @@ export function CaseDocumentsPanel({
                           {d.notes}
                         </p>
                       ) : null}
+                      <div className="mt-3">
+                        <AuthFilePreview
+                          unitId={d.unitId}
+                          mimeType={d.mimeType}
+                          title={d.title}
+                        />
+                      </div>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">

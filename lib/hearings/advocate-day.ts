@@ -7,6 +7,18 @@ import {
 } from "@/lib/hearings/court-key";
 import { istDateKey, istDayBounds } from "@/lib/utils/ist";
 
+/** Principal office admins are listed on cases as the advocate. */
+export function canActAsHearingAdvocate(
+  roles: string[] | null | undefined
+): boolean {
+  if (!roles?.length) return false;
+  return (
+    roles.includes("advocate") ||
+    roles.includes("admin") ||
+    roles.includes("sub_admin")
+  );
+}
+
 export type ClashReason =
   | "inactive"
   | "not_advocate"
@@ -90,7 +102,7 @@ export async function assertAdvocateCourtDayAvailable(input: {
   if (!user || !user.isActive) {
     return { ok: false, reason: "inactive" };
   }
-  if (!user.roles.includes("advocate")) {
+  if (!canActAsHearingAdvocate(user.roles)) {
     return { ok: false, reason: "not_advocate" };
   }
 

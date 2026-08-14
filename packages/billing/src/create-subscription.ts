@@ -1,7 +1,7 @@
 import type { BillingCycle, Plan, Subscription } from "@prisma/client";
 import { prisma } from "@meiyon/db";
 import { razorpayApi } from "./razorpay-client";
-import { addBillingPeriod } from "./create-invoice";
+import { addBillingPeriod, gstInclusivePaise } from "./create-invoice";
 
 async function ensureRazorpayPlan(
   plan: Plan,
@@ -15,15 +15,16 @@ async function ensureRazorpayPlan(
   const amountPaise =
     cycle === "yearly" ? plan.yearlyPricePaise : plan.monthlyPricePaise;
   const period = cycle === "yearly" ? "yearly" : "monthly";
+  const chargePaise = gstInclusivePaise(amountPaise);
 
   const created = await razorpayApi.plans.create({
     period,
     interval: 1,
     item: {
       name: `MEIYON ${plan.name} (${cycle})`,
-      amount: amountPaise,
+      amount: chargePaise,
       currency: "INR",
-      description: `${plan.name} plan — ${cycle} billing`,
+      description: `${plan.name} plan — ${cycle} billing incl. GST 18%`,
     },
   });
 
@@ -118,13 +119,14 @@ export async function createRazorpayCheckout(
     input.billingCycle === "yearly"
       ? input.plan.yearlyPricePaise
       : input.plan.monthlyPricePaise;
+  const chargePaise = gstInclusivePaise(amountPaise);
 
   return {
     subscriptionId: input.subscription.unitId,
     razorpaySubscriptionId: sub.id,
     keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? process.env.RAZORPAY_KEY_ID ?? "",
     planName: input.plan.name,
-    amountPaise,
+    amountPaise: chargePaise,
   };
 }
 
@@ -134,34 +136,45 @@ export async function activateSubscriptionLocally(
 ) {
   const now = new Date();
   const periodEnd = addBillingPeriod(now, billingCycle);
-  return prisma.subscription.update({
+  const sub = await prisma.subscription.update({
     where: { unitId: subscriptionUnitId },
     data: {
       status: "active",
+      billingCycle,
       currentPeriodStart: now,
       currentPeriodEnd: periodEnd,
       trialEndsAt: null,
+      cancelAtPeriodEnd: false,
     },
   });
+  await prisma.office.update({
+    where: { id: sub.officeId },
+    data: { status: "active" },
+  });
+  return sub;
 }
 
 export async function cancelSubscriptionAtPeriodEnd(subscriptionUnitId: string) {
   const sub = await prisma.subscription.findUnique({
     where: { unitId: subscriptionUnitId },
   });
-  if (!sub?.razorpaySubscriptionId) {
-    return prisma.subscription.update({
-      where: { unitId: subscriptionUnitId },
-      data: { status: "cancelled" },
+  if (!sub) return null;
+
+  if (sub.razorpaySubscriptionId) {
+    await razorpayApi.subscriptions.cancel(sub.razorpaySubscriptionId, {
+      cancel_at_cycle_end: 1,
     });
   }
 
-  await razorpayApi.subscriptions.cancel(sub.razorpaySubscriptionId, {
-    cancel_at_cycle_end: 1,
-  });
-
   return prisma.subscription.update({
     where: { unitId: subscriptionUnitId },
-    data: { status: "cancelled" },
+    data: { cancelAtPeriodEnd: true },
+  });
+}
+
+export async function resumeSubscriptionCancel(subscriptionUnitId: string) {
+  return prisma.subscription.update({
+    where: { unitId: subscriptionUnitId },
+    data: { cancelAtPeriodEnd: false },
   });
 }

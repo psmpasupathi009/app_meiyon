@@ -26,6 +26,7 @@ export const GET = apiHandler(async (request) => {
       currentPeriodStart: ctx.subscription.currentPeriodStart,
       currentPeriodEnd: ctx.subscription.currentPeriodEnd,
       trialEndsAt: ctx.subscription.trialEndsAt,
+      cancelAtPeriodEnd: ctx.subscription.cancelAtPeriodEnd,
     },
     plan: {
       code: ctx.plan.code,

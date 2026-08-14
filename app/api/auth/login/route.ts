@@ -1,5 +1,5 @@
 import { prisma } from "@meiyon/db";
-import { jsonFail, jsonOk } from "@/lib/api/response";
+import { apiHandler, jsonFail, jsonOk } from "@/lib/api/response";
 import { ACCESS_COOKIE } from "@/lib/auth/cookie-names";
 import { normalizeMobile } from "@/lib/auth/mobile";
 import { loginSchema } from "@meiyon/auth";
@@ -10,8 +10,9 @@ import {
   verifyPin,
 } from "@/lib/auth/pin";
 import { issueSession, sessionCookieOptions } from "@/lib/auth/session";
+import { classifyBillingAccess } from "@/lib/billing/access";
 
-export async function POST(request: Request) {
+export const POST = apiHandler(async (request) => {
   const body = await request.json();
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) return jsonFail("VALIDATION", "Invalid login details", 400);
@@ -64,24 +65,25 @@ export async function POST(request: Request) {
   }
 
   const office = await prisma.office.findUnique({ where: { id: user.officeId } });
-  if (!office || office.status === "suspended" || office.status === "cancelled") {
-    return jsonFail("OFFICE_SUSPENDED", "Office access is suspended", 403);
-  }
-  if (office.status !== "active") {
+  const sub = await prisma.subscription.findFirst({
+    where: { officeId: user.officeId },
+    orderBy: { createdAt: "desc" },
+  });
+  const gate = classifyBillingAccess({
+    officeStatus: office?.status,
+    subStatus: sub?.status,
+    roles: user.roles,
+  });
+  if (gate === "blocked") {
     return jsonFail("OFFICE_SUSPENDED", "Office access is not active", 403);
   }
 
-  const sub = await prisma.subscription.findFirst({ where: { officeId: user.officeId } });
-  if (
-    sub?.status === "suspended" ||
-    sub?.status === "expired" ||
-    sub?.status === "cancelled"
-  ) {
-    return jsonFail("SUBSCRIPTION_INACTIVE", "Subscription inactive. Contact admin.", 403);
-  }
-
   const tokens = await issueSession(user);
-  const response = jsonOk({ user: tokens.user, message: "Login successful" });
+  const response = jsonOk({
+    user: tokens.user,
+    message: "Login successful",
+    paywall: gate === "paywall",
+  });
   response.cookies.set(ACCESS_COOKIE, tokens.accessToken, sessionCookieOptions());
   return response;
-}
+});

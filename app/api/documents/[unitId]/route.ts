@@ -4,10 +4,17 @@ import { prisma } from "@meiyon/db";
 import { writeAudit, pickAuditFields } from "@/lib/audit";
 import { storage } from "@/lib/storage";
 import { canMutateDocument } from "@/features/documents/server/access";
+import { isClientOnlyUser } from "@/lib/auth/client-portal";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 
 export const DELETE = apiHandler(async (request, context) => {
   const { user, response } = await requireUser(request);
   if (!user) return response;
+
+  if (!isClientOnlyUser(user.roles)) {
+    const planFail = await requirePlanModule(user, "documents");
+    if (planFail) return planFail;
+  }
 
   const { unitId } = (await context.params) ?? {};
   const doc = unitId

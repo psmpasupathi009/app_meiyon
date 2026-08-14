@@ -1,28 +1,22 @@
 import { apiHandler, jsonOk } from "@/lib/api/response";
 import { prisma } from "@meiyon/db";
-
-function authorizeCron(request: Request): boolean {
-  const secret = process.env.CRON_SECRET?.trim();
-  if (!secret) return false;
-  const header =
-    request.headers.get("x-cron-secret") ??
-    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
-    "";
-  return header === secret;
-}
+import { authorizeCron } from "@/lib/cron-auth";
 
 const GRACE_DAYS = 7;
 
 export const POST = apiHandler(async (request) => {
-  if (!authorizeCron(request)) {
-    return jsonOk({ skipped: true, reason: "unauthorized" });
-  }
+  const denied = authorizeCron(request);
+  if (denied) return denied;
 
   const cutoff = new Date(Date.now() - GRACE_DAYS * 24 * 60 * 60 * 1000);
   const overdue = await prisma.subscription.findMany({
     where: {
       status: "past_due",
-      updatedAt: { lt: cutoff },
+      OR: [
+        { trialEndsAt: { lt: cutoff } },
+        { trialEndsAt: null, currentPeriodEnd: { lt: cutoff } },
+        { trialEndsAt: null, currentPeriodEnd: null, updatedAt: { lt: cutoff } },
+      ],
     },
   });
 

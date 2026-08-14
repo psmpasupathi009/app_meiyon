@@ -25,7 +25,7 @@ export const createClientSchema = z.object({
   referredBy: optionalText(120),
   matterBrief: optionalText(2000),
   notes: optionalText(1000),
-  smsConsent: z.boolean().optional().default(true),
+  smsConsent: z.boolean().optional().default(false),
 });
 
 export const updateClientSchema = createClientSchema.partial();

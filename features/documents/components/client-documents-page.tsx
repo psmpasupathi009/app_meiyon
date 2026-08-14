@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DOCUMENT_TYPE_LABELS } from "@/lib/validations/documents.schema";
+import { AuthFilePreview } from "@/features/documents/components/auth-file-preview";
 
 export function ClientDocumentsPage({ user }: { user: PublicUser }) {
   const [docs, setDocs] = useState<DocumentSummary[]>([]);
@@ -111,6 +112,12 @@ export function ClientDocumentsPage({ user }: { user: PublicUser }) {
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         {d.caseUnitId || d.clientUnitId || "—"}
                       </p>
+                      <AuthFilePreview
+                        unitId={d.unitId}
+                        mimeType={d.mimeType}
+                        title={d.title}
+                        className="mt-2"
+                      />
                     </div>
                     <Button
                       type="button"

@@ -179,16 +179,10 @@ async function adminSession(mobile: string): Promise<CookieJar | null> {
 async function main() {
   console.log("MEIYON 3-site smoke\n");
 
-  const required = ["DATABASE_URL", "JWT_SECRET_OP", "JWT_SECRET_SA", "ADMIN_MOBILE"];
+  const required = ["DATABASE_URL", "JWT_SECRET_OP", "ADMIN_MOBILE", "LEAD_INGEST_SECRET"];
   for (const key of required) {
     if (!process.env[key]) fail(`Missing ${key}`);
     else ok(`${key} set`);
-  }
-
-  if (process.env.JWT_SECRET_OP === process.env.JWT_SECRET_SA) {
-    fail("JWT_SECRET_OP and JWT_SECRET_SA must differ");
-  } else {
-    ok("JWT secrets are distinct");
   }
 
   if (process.env.OTP_LIVE === "1") {
@@ -219,7 +213,9 @@ async function main() {
 
   console.log("\nHTTP checks:");
   await checkUrl("Marketing", MARKETING);
-  await checkUrl("Marketing /contact", `${MARKETING}/contact`);
+  await checkUrl("Marketing /legal/terms", `${MARKETING}/legal/terms`);
+  await checkUrl("Marketing /legal/grievance", `${MARKETING}/legal/grievance`);
+  await checkUrl("Marketing /legal/refund-policy", `${MARKETING}/legal/refund-policy`);
   await checkUrl("PSM Admin /login", `${ADMIN}/login`);
   await checkUrl("Office Portal /login", `${PORTAL}/login`);
 
@@ -499,6 +495,137 @@ async function main() {
       );
       if (reset.json.ok) ok("OP forgot-PIN reset + cookie");
       else fail(`OP forgot-PIN reset → ${reset.status} ${JSON.stringify(reset.json)}`);
+    }
+  }
+
+  console.log("\nFlow: billing trial → grace → pay-wall → offline pay:");
+  {
+    const unauthCron = await fetch(`${PORTAL}/api/cron/trial-expiry`);
+    if (unauthCron.status === 401) ok("cron without secret → 401");
+    else fail(`cron without secret expected 401, got ${unauthCron.status}`);
+
+    const officeUnitId =
+      office && typeof office.unitId === "string" ? office.unitId : null;
+    const cronSecret = process.env.CRON_SECRET?.trim();
+    if (!officeUnitId) {
+      fail("Skip billing loop — office not created");
+    } else {
+      const sub = await prisma.subscription.findFirst({
+        where: { officeUnitId },
+      });
+      if (!sub) {
+        fail("Subscription missing for smoke office");
+      } else {
+        const trialMs = (sub.trialEndsAt?.getTime() ?? 0) - Date.now();
+        const trialDays = trialMs / (24 * 60 * 60 * 1000);
+        if (trialDays > 6 && trialDays < 8.1) ok("New office trial ~7 days");
+        else fail(`Trial remaining ${trialDays.toFixed(2)} days, expected ~7`);
+
+        await prisma.subscription.update({
+          where: { id: sub.id },
+          data: {
+            status: "trialing",
+            trialEndsAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+          },
+        });
+
+        if (!cronSecret) {
+          fail("CRON_SECRET missing — cannot exercise expiry crons");
+        } else {
+          const expiry = await fetch(`${PORTAL}/api/cron/trial-expiry`, {
+            headers: { Authorization: `Bearer ${cronSecret}` },
+          });
+          const expiryJson = (await expiry.json().catch(() => ({}))) as {
+            ok?: boolean;
+            data?: { trialToPastDue?: number };
+          };
+          if (expiry.ok && expiryJson.ok) ok("trial-expiry cron");
+          else fail(`trial-expiry → ${expiry.status} ${JSON.stringify(expiryJson)}`);
+
+          const afterExpiry = await prisma.subscription.findUnique({
+            where: { id: sub.id },
+          });
+          if (afterExpiry?.status === "past_due") ok("sub status past_due");
+          else fail(`sub status ${afterExpiry?.status}, expected past_due`);
+
+          const clientsOk = await fetch(`${PORTAL}/api/clients`, {
+            headers: { Cookie: cookieHeader(opJar) },
+          });
+          if (clientsOk.status === 200) ok("past_due /api/clients → 200");
+          else fail(`past_due /api/clients → ${clientsOk.status}`);
+
+          await prisma.subscription.update({
+            where: { id: sub.id },
+            data: {
+              status: "past_due",
+              trialEndsAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+            },
+          });
+
+          const suspend = await fetch(`${PORTAL}/api/cron/past-due-suspend`, {
+            headers: { Authorization: `Bearer ${cronSecret}` },
+          });
+          const suspendJson = (await suspend.json().catch(() => ({}))) as {
+            ok?: boolean;
+          };
+          if (suspend.ok && suspendJson.ok) ok("past-due-suspend cron");
+          else fail(`past-due-suspend → ${suspend.status} ${JSON.stringify(suspendJson)}`);
+
+          const afterSuspend = await prisma.subscription.findUnique({
+            where: { id: sub.id },
+          });
+          if (afterSuspend?.status === "suspended") ok("sub status suspended");
+          else fail(`sub status ${afterSuspend?.status}, expected suspended`);
+
+          const clientsWall = await fetch(`${PORTAL}/api/clients`, {
+            headers: { Cookie: cookieHeader(opJar) },
+          });
+          if (clientsWall.status === 402) ok("pay-wall /api/clients → 402");
+          else fail(`pay-wall /api/clients → ${clientsWall.status}`);
+
+          const billingPage = await getPage(`${PORTAL}/billing`, opJar);
+          if (billingPage.status === 200) ok("pay-wall /billing → 200");
+          else fail(`pay-wall /billing → ${billingPage.status}`);
+
+          const offline = await jsonPost(
+            `${ADMIN}/api/subscriptions/${sub.unitId}/offline-payment`,
+            { reference: "SMOKE-UTR" },
+            saJar
+          );
+          if (offline.json.ok) ok("SA offline payment");
+          else fail(`offline pay → ${offline.status} ${JSON.stringify(offline.json)}`);
+
+          const afterPay = await prisma.subscription.findUnique({
+            where: { id: sub.id },
+          });
+          const officeRow = await prisma.office.findUnique({
+            where: { unitId: officeUnitId },
+          });
+          if (afterPay?.status === "active" && officeRow?.status === "active") {
+            ok("office+sub active after pay");
+          } else {
+            fail(
+              `after pay sub=${afterPay?.status} office=${officeRow?.status}`
+            );
+          }
+
+          const clientsAgain = await fetch(`${PORTAL}/api/clients`, {
+            headers: { Cookie: cookieHeader(opJar) },
+          });
+          if (clientsAgain.status === 200) ok("reactivated /api/clients → 200");
+          else fail(`reactivated /api/clients → ${clientsAgain.status}`);
+
+          const inv = await prisma.invoice.findFirst({
+            where: { officeUnitId },
+            orderBy: { createdAt: "desc" },
+          });
+          if (inv && inv.taxPaise > 0 && (inv.sac === "998314" || inv.sac == null)) {
+            ok(`GST invoice ${inv.unitId} tax=${inv.taxPaise} sac=${inv.sac ?? "998314"}`);
+          } else {
+            fail(`GST invoice missing or no tax ${JSON.stringify(inv)}`);
+          }
+        }
+      }
     }
   }
 

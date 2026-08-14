@@ -4,6 +4,7 @@ import { prisma } from "@meiyon/db";
 import { nextUnitId } from "@/lib/ids";
 import { writeAudit, pickAuditFields } from "@/lib/audit";
 import { hasPermission, requireModuleEnabled } from "@/lib/rbac";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 import { applyLeaveSchema } from "@/lib/validations/hrms.schema";
 import { toLeaveSummary } from "@/features/hrms/server/serialize";
 import {
@@ -19,6 +20,9 @@ export const GET = apiHandler(async (request) => {
 
   const { user, response } = await requireUser(request);
   if (!user) return response;
+
+  const planFail = await requirePlanModule(user, "hrms");
+  if (planFail) return planFail;
 
   const canOwn = await hasPermission(user, "hrms", "own_leave");
   const canApprove = await hasPermission(user, "hrms", "approve_leave");
@@ -84,6 +88,9 @@ export const GET = apiHandler(async (request) => {
 export const POST = apiHandler(async (request) => {
   const { user, response } = await requirePerm(request, "hrms", "own_leave");
   if (!user) return response;
+
+  const planFail = await requirePlanModule(user, "hrms");
+  if (planFail) return planFail;
 
   const raw = await request.json();
   const parsed = applyLeaveSchema.safeParse(raw);

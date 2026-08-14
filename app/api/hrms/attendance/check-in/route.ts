@@ -6,10 +6,14 @@ import { istDateKey } from "@/lib/utils/ist";
 import { checkInOutSchema } from "@/lib/validations/hrms.schema";
 import { toAttendanceSummary } from "@/features/hrms/server/serialize";
 import { findOfficeHolidayForDate } from "@/features/hrms/server/office-holiday";
+import { requirePlanModule } from "@/lib/auth/plan-gate";
 
 export const POST = apiHandler(async (request) => {
   const { user, response } = await requirePerm(request, "hrms", "own_attendance");
   if (!user) return response;
+
+  const planFail = await requirePlanModule(user, "hrms");
+  if (planFail) return planFail;
 
   const raw = await request.json().catch(() => ({}));
   const parsed = checkInOutSchema.safeParse(raw);
